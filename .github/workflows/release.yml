@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Verify Trusted Tag Releaser
-        uses: ./
+        uses: actionutils/trusted-tag-verifier@v0
         with:
           repository: 'actionutils/trusted-tag-releaser'
           tag: 'v0'
