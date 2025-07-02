@@ -158,7 +158,7 @@ jobs:
         if: steps.check-config.outputs.config_exists == 'true'
         env:
           checksum_file: ${{ needs.goreleaser.outputs.checksum_file }}
-        run: binst embed-checksums --mode=checksum-file --file=./dist/${checksum_file} --version='${{ needs.version.outputs.tag_name }}'
+        run: binst embed-checksums --mode=checksum-file --file=./dist/${checksum_file} --version='${{ needs.version.outputs.tag_name }}' --config=.config/binstaller.yml
       - name: Generate installer
         if: steps.check-config.outputs.config_exists == 'true'
         run: binst gen --target-version='${{ needs.version.outputs.tag_name }}' --output=./dist/install.sh
