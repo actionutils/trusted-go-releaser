@@ -145,7 +145,7 @@ jobs:
       - name: Embed checksums
         if: steps.check-config.outputs.config_exists == 'true'
         env:
-          checksum_file: ${{ needs.goreleaser.outputs.checksum_file }}
+          checksum_file: ${{ steps.checksumtxt.outputs.checksum_file }}
         run: binst embed-checksums --mode=checksum-file --file=./dist/${checksum_file} --version='${{ needs.version.outputs.tag_name }}'
       - name: Generate installer
         if: steps.check-config.outputs.config_exists == 'true'
