@@ -153,7 +153,7 @@ jobs:
         uses: binary-install/setup-x@v1
         with:
           script_url: https://raw.githubusercontent.com/binary-install/binstaller/main/install.sh
-          gh_attestations_verify_flags: --repo binary-install/binstaller --cert-identity=.github/workflows/generate-installer.yml@refs/heads/main
+          gh_attestations_verify_flags: --repo binary-install/binstaller --cert-identity-regex=.github/workflows/generate-installer.yml@refs/heads/main
       - name: Embed checksums
         if: steps.check-config.outputs.config_exists == 'true'
         env:
