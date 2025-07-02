@@ -120,20 +120,8 @@ jobs:
       - uses: actions/attest-build-provenance@v2
         with:
           subject-path: ./dist/${{ steps.checksumtxt.outputs.checksum_file }}
-
-  binstaller:
-    needs: [version, goreleaser]
-    if: needs.version.outputs.tag_name != ''
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write # needed for keyless signing
-      attestations: write # needed for provenance
-    outputs:
-      artifacts: ${{ steps.goreleaser.outputs.artifacts }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.branch }}
+      
+      # Binstaller steps
       - name: Check for binstaller config
         id: check-config
         run: |
@@ -157,7 +145,7 @@ jobs:
       - name: Embed checksums
         if: steps.check-config.outputs.config_exists == 'true'
         env:
-          checksum_file: ${{ needs.goreleaser.outputs.checksum_file }}
+          checksum_file: ${{ steps.checksumtxt.outputs.checksum_file }}
         run: binst embed-checksums --mode=checksum-file --file=./dist/${checksum_file} --version='${{ needs.version.outputs.tag_name }}' --config=.config/binstaller.yml
       - name: Generate installer
         if: steps.check-config.outputs.config_exists == 'true'
@@ -175,7 +163,7 @@ jobs:
           subject-path: ./dist/install.sh
 
   release:
-    needs: [version, goreleaser, binstaller]
+    needs: [version, goreleaser]
     if: needs.version.outputs.tag_name != ''
     runs-on: ubuntu-latest
     permissions:
