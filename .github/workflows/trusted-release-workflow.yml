@@ -6,10 +6,10 @@ name: Trusted Go Release Workflow
 on:
   workflow_call:
     inputs:
-      branch:
-        description: 'The working branch'
+      ref:
+        description: 'The ref to checkout (commit SHA, tag, or branch)'
         required: false
-        default: ${{ github.event.repository.default_branch }}
+        default: ${{ github.sha }}
         type: string
       draft:
         description: 'Whether to keep the release as a draft'
@@ -45,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.branch }}
+          ref: ${{ inputs.ref }}
 
       # Set up signed tag configuration
       - uses: chainguard-dev/actions/setup-gitsign@v1.0.1
@@ -90,7 +90,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.branch }}
+          ref: ${{ inputs.ref }}
           fetch-depth: 0 # this is important, otherwise it won't checkout the full tree (i.e. no previous tags)
       - uses: actions/setup-go@v5
         with:
