@@ -150,7 +150,7 @@ jobs:
       - name: Generate installer and runner scripts
         if: steps.check-config.outputs.config_exists == 'true'
         run: |
-          binst gen --target-version='${{ needs.version.outputs.tag_name }}' --output=./dist/install.sh
+          binst gen --type=installer --target-version='${{ needs.version.outputs.tag_name }}' --output=./dist/install.sh
           binst gen --type=runner --target-version='${{ needs.version.outputs.tag_name }}' --output=./dist/run.sh
       - name: Upload installer and runner to release
         if: steps.check-config.outputs.config_exists == 'true'
