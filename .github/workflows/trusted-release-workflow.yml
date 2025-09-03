@@ -113,14 +113,14 @@ jobs:
           checksum_file=$(echo "$ARTIFACTS" | jq -r '.[] | select (.type=="Checksum") | .name')
           echo "checksum file: ${checksum_file}"
           echo "checksum_file=${checksum_file}" >> $GITHUB_OUTPUT
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v3
         with:
           subject-checksums: ./dist/${{ steps.checksumtxt.outputs.checksum_file }}
       # Generate attestations for checksum file itself.
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v3
         with:
           subject-path: ./dist/${{ steps.checksumtxt.outputs.checksum_file }}
-      
+
       # Binstaller steps
       - name: Check for binstaller config
         id: check-config
@@ -147,20 +147,24 @@ jobs:
         env:
           checksum_file: ${{ steps.checksumtxt.outputs.checksum_file }}
         run: binst embed-checksums --mode=checksum-file --file=./dist/${checksum_file} --version='${{ needs.version.outputs.tag_name }}'
-      - name: Generate installer
+      - name: Generate installer and runner scripts
         if: steps.check-config.outputs.config_exists == 'true'
-        run: binst gen --target-version='${{ needs.version.outputs.tag_name }}' --output=./dist/install.sh
-      - name: Upload installer to release
+        run: |
+          binst gen --type=installer --target-version='${{ needs.version.outputs.tag_name }}' --output=./dist/install.sh
+          binst gen --type=runner --target-version='${{ needs.version.outputs.tag_name }}' --output=./dist/run.sh
+      - name: Upload installer and runner to release
         if: steps.check-config.outputs.config_exists == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload '${{ needs.version.outputs.tag_name }}' ./dist/install.sh
-      - name: Attest installer
+          gh release upload '${{ needs.version.outputs.tag_name }}' ./dist/install.sh ./dist/run.sh
+      - name: Attest binstaller scripts
         if: steps.check-config.outputs.config_exists == 'true'
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v3
         with:
-          subject-path: ./dist/install.sh
+          subject-path: |
+            ./dist/install.sh
+            ./dist/run.sh
 
   release:
     needs: [version, goreleaser]
