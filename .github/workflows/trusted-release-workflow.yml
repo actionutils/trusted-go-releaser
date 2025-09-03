@@ -116,6 +116,9 @@ jobs:
       - uses: actions/attest-build-provenance@v3
         with:
           subject-checksums: ./dist/${{ steps.checksumtxt.outputs.checksum_file }}
+      # Generate attestations for checksum file itself.
+      - uses: actions/attest-build-provenance@v3
+        with:
           subject-path: ./dist/${{ steps.checksumtxt.outputs.checksum_file }}
 
       # Binstaller steps
