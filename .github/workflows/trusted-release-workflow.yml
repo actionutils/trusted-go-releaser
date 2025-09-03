@@ -147,12 +147,11 @@ jobs:
         env:
           checksum_file: ${{ steps.checksumtxt.outputs.checksum_file }}
         run: binst embed-checksums --mode=checksum-file --file=./dist/${checksum_file} --version='${{ needs.version.outputs.tag_name }}'
-      - name: Generate installer
+      - name: Generate installer and runner scripts
         if: steps.check-config.outputs.config_exists == 'true'
-        run: binst gen --target-version='${{ needs.version.outputs.tag_name }}' --output=./dist/install.sh
-      - name: Generate runner script
-        if: steps.check-config.outputs.config_exists == 'true'
-        run: binst gen --type=runner --target-version='${{ needs.version.outputs.tag_name }}' --output=./dist/run.sh
+        run: |
+          binst gen --target-version='${{ needs.version.outputs.tag_name }}' --output=./dist/install.sh
+          binst gen --type=runner --target-version='${{ needs.version.outputs.tag_name }}' --output=./dist/run.sh
       - name: Upload installer and runner to release
         if: steps.check-config.outputs.config_exists == 'true'
         env:
