@@ -1,0 +1,184 @@
+name: E2E Test
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout test repository
+        uses: actions/checkout@v5
+        with:
+          repository: actionutils/test-trusted-go-releaser
+          token: ${{ secrets.TEST_TRUSTED_GO_RELEASER_REPO_GITHUB_TOKEN }}
+
+      - name: Create test base branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create test base branch name with release-test prefix
+          COMMIT_SHORT_SHA=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-8)
+          TEST_BASE_BRANCH="release-test-base-pr-${{ github.event.pull_request.number }}-$COMMIT_SHORT_SHA"
+          echo "TEST_BASE_BRANCH=$TEST_BASE_BRANCH" >> $GITHUB_ENV
+
+          # Create base branch from main with sed changes
+          git checkout -b "$TEST_BASE_BRANCH"
+
+          # Update release.yml to use the PR commit hash instead of @main
+          sed -i 's|actionutils/trusted-go-releaser/\.github/workflows/\([^@]*\)@main|actionutils/trusted-go-releaser/.github/workflows/\1@${{ github.event.pull_request.head.sha }}|g' .github/workflows/release.yml
+
+          git add .github/workflows/release.yml
+          git commit -m "chore: update workflow refs to use PR commit ${{ github.event.pull_request.head.sha }}"
+
+          git push origin "$TEST_BASE_BRANCH"
+
+      - name: Create feature branch
+        run: |
+          # Create feature branch name
+          FEATURE_BRANCH="test-feature-pr-${{ github.event.pull_request.number }}-$(date +%s)"
+          echo "FEATURE_BRANCH=$FEATURE_BRANCH" >> $GITHUB_ENV
+
+          # Create feature branch from the test base branch
+          git checkout -b "$FEATURE_BRANCH"
+
+          # Make a minimal change to trigger a release
+          echo "# Test change for PR #${{ github.event.pull_request.number }}" >> README.md
+          echo "Test commit from trusted-go-releaser PR #${{ github.event.pull_request.number }}" >> test-file.txt
+
+          git add .
+          git commit -m "test: trigger release for trusted-go-releaser PR #${{ github.event.pull_request.number }}
+
+          This is a test commit to validate the trusted-go-releaser workflow
+          using ref: ${{ github.event.pull_request.head.ref }}"
+
+          git push origin "$FEATURE_BRANCH"
+
+      - name: Create PR with bump:patch label
+        env:
+          GH_TOKEN: ${{ secrets.TEST_TRUSTED_GO_RELEASER_REPO_GITHUB_TOKEN }}
+        run: |
+          # Get commit short hash for title
+          COMMIT_SHORT_SHA=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-8)
+
+          gh pr create \
+            --repo actionutils/test-trusted-go-releaser \
+            --title "Test release for trusted-go-releaser PR #${{ github.event.pull_request.number }} ($COMMIT_SHORT_SHA)" \
+            --body "Automated test PR created from trusted-go-releaser PR #${{ github.event.pull_request.number }}
+
+          **Source PR:** ${{ github.event.pull_request.html_url }}
+          **Source Ref:** https://github.com/actionutils/trusted-go-releaser/tree/${{ github.event.pull_request.head.ref }}
+          **Source SHA:** https://github.com/actionutils/trusted-go-releaser/commit/${{ github.event.pull_request.head.sha }}
+
+          This PR tests the trusted-go-releaser workflow." \
+            --head "$FEATURE_BRANCH" \
+            --base "$TEST_BASE_BRANCH" \
+            --label "bump:patch"
+
+          # Store PR number for later use
+          PR_NUMBER=$(gh pr list --repo actionutils/test-trusted-go-releaser --head "$FEATURE_BRANCH" --json number --jq '.[0].number')
+          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
+
+      - name: Merge PR
+        env:
+          GH_TOKEN: ${{ secrets.TEST_TRUSTED_GO_RELEASER_REPO_GITHUB_TOKEN }}
+        run: |
+          # Wait a moment for the PR to be fully created
+          sleep 5
+
+          # Merge the PR directly
+          gh pr merge $PR_NUMBER \
+            --repo actionutils/test-trusted-go-releaser \
+            --squash \
+            --delete-branch
+
+          echo "PR #$PR_NUMBER merged successfully"
+
+      - name: Wait for release workflow completion
+        env:
+          GH_TOKEN: ${{ secrets.TEST_TRUSTED_GO_RELEASER_REPO_GITHUB_TOKEN }}
+        run: |
+          echo "Waiting for release workflow to start..."
+          sleep 30
+
+          # Get the latest workflow run for the Release workflow on the test base branch
+          LATEST_RUN_ID=$(gh run list \
+            --repo actionutils/test-trusted-go-releaser \
+            --workflow=release.yml \
+            --branch="$TEST_BASE_BRANCH" \
+            --limit=1 \
+            --json=databaseId \
+            --jq='.[0].databaseId')
+
+          if [ -n "$LATEST_RUN_ID" ] && [ "$LATEST_RUN_ID" != "null" ]; then
+            echo "Found release workflow run: $LATEST_RUN_ID"
+            echo "Watching workflow progress..."
+
+            # Watch the workflow run until completion
+            gh run watch $LATEST_RUN_ID --repo actionutils/test-trusted-go-releaser
+
+            echo "✅ Release workflow completed!"
+          else
+            echo "⚠️ No release workflow run found for branch $TEST_BASE_BRANCH"
+          fi
+
+      - name: Revert base branch changes
+        env:
+          GH_TOKEN: ${{ secrets.TEST_TRUSTED_GO_RELEASER_REPO_GITHUB_TOKEN }}
+        run: |
+          # Switch back to the test base branch
+          git checkout "$TEST_BASE_BRANCH"
+
+          # Pull the latest changes including the merge result
+          git pull origin "$TEST_BASE_BRANCH"
+
+          # Check what commits differ from main
+          COMMITS_TO_REVERT=$(git rev-list --reverse main.."$TEST_BASE_BRANCH")
+          echo "Commits to revert: $COMMITS_TO_REVERT"
+
+          # Revert all commits that differ from main (in reverse order)
+          if [ -n "$COMMITS_TO_REVERT" ]; then
+            for commit in $COMMITS_TO_REVERT; do
+              git revert $commit --no-edit
+            done
+          else
+            echo "No commits to revert - base branch is same as main"
+          fi
+
+          echo "Reverted all base branch changes to restore original state"
+
+      - name: Merge base branch to main
+        run: |
+          # Switch to main branch
+          git checkout main
+
+          # Pull latest main
+          git pull origin main
+
+          # Merge the base branch directly
+          git merge "$TEST_BASE_BRANCH" --no-ff -m "Merge test results back to main (PR #${{ github.event.pull_request.number }})
+
+          Original test PR: https://github.com/actionutils/test-trusted-go-releaser/pull/$PR_NUMBER
+          Source trusted-go-releaser PR: ${{ github.event.pull_request.html_url }}
+
+          This ensures tags created during testing are accessible from main branch via git tag --merged."
+
+          # Push the merged main
+          git push origin main
+
+          # Clean up the test base branch
+          git push origin --delete "$TEST_BASE_BRANCH"
+
+          echo "Merged test base branch to main directly"
+
+      - name: Output test PR info
+        run: |
+          echo "✅ E2E test completed successfully!"
+          echo "Test PR URL: https://github.com/actionutils/test-trusted-go-releaser/pull/$PR_NUMBER"
+          echo "Base branch merged directly to main - no PR created"
+          echo "Check the test repository for workflow execution and release creation."
+          echo "Tags should now be trackable from main branch via 'git tag --merged'."
