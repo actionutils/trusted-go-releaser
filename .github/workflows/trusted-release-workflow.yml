@@ -102,9 +102,10 @@ jobs:
         id: goreleaser
         with:
           version: '~> v2'
-          args: release --clean --draft
+          args: release --clean --skip=publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: ls ./dist
       - name: Get checksum file name
         id: checksumtxt
         env:
