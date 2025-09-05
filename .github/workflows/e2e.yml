@@ -29,11 +29,11 @@ jobs:
           # Create base branch from main with sed changes
           git checkout -b "$TEST_BASE_BRANCH"
 
-          # Update release.yml to use the PR branch instead of @main
-          sed -i 's|actionutils/trusted-go-releaser/\.github/workflows/\([^@]*\)@main|actionutils/trusted-go-releaser/.github/workflows/\1@${{ github.event.pull_request.head.ref }}|g' .github/workflows/release.yml
+          # Update release.yml to use the PR commit hash instead of @main
+          sed -i 's|actionutils/trusted-go-releaser/\.github/workflows/\([^@]*\)@main|actionutils/trusted-go-releaser/.github/workflows/\1@${{ github.event.pull_request.head.sha }}|g' .github/workflows/release.yml
 
           git add .github/workflows/release.yml
-          git commit -m "chore: update workflow refs to use PR branch ${{ github.event.pull_request.head.ref }}"
+          git commit -m "chore: update workflow refs to use PR commit ${{ github.event.pull_request.head.sha }}"
 
           git push origin "$TEST_BASE_BRANCH"
 
