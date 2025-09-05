@@ -21,9 +21,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Create test base branch name with commit short hash for uniqueness
+          # Create test base branch name with release-test prefix
           COMMIT_SHORT_SHA=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-8)
-          TEST_BASE_BRANCH="test-base-pr-${{ github.event.pull_request.number }}-$COMMIT_SHORT_SHA"
+          TEST_BASE_BRANCH="release-test-base-pr-${{ github.event.pull_request.number }}-$COMMIT_SHORT_SHA"
           echo "TEST_BASE_BRANCH=$TEST_BASE_BRANCH" >> $GITHUB_ENV
 
           # Create base branch from main with sed changes
