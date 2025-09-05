@@ -1,0 +1,84 @@
+name: E2E Test
+
+on:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout test repository
+        uses: actions/checkout@v5
+        with:
+          repository: actionutils/test-trusted-go-releaser
+          token: ${{ secrets.TEST_TRUSTED_GO_RELEASER_REPO_GITHUB_TOKEN }}
+
+      - name: Create test branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create a unique branch name based on PR info
+          BRANCH_NAME="test-pr-${{ github.event.pull_request.number }}-$(date +%s)"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+
+          git checkout -b "$BRANCH_NAME"
+
+          # Update release.yml to use the PR branch instead of @main
+          sed -i 's|actionutils/trusted-go-releaser/\.github/workflows/\([^@]*\)@main|actionutils/trusted-go-releaser/.github/workflows/\1@${{ github.event.pull_request.head.ref }}|g' .github/workflows/release.yml
+
+          # Make a minimal change to trigger a release
+          echo "# Test change for PR #${{ github.event.pull_request.number }}" >> README.md
+          echo "Test commit from trusted-go-releaser PR #${{ github.event.pull_request.number }}" >> test-file.txt
+
+          git add .
+          git commit -m "test: trigger release for trusted-go-releaser PR #${{ github.event.pull_request.number }}
+
+          This is a test commit to validate the trusted-go-releaser workflow
+          using ref: ${{ github.event.pull_request.head.ref }}"
+
+          git push origin "$BRANCH_NAME"
+
+      - name: Create PR with bump:patch label
+        env:
+          GH_TOKEN: ${{ secrets.TEST_TRUSTED_GO_RELEASER_REPO_GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --repo actionutils/test-trusted-go-releaser \
+            --title "Test release for trusted-go-releaser PR #${{ github.event.pull_request.number }}" \
+            --body "Automated test PR created from trusted-go-releaser PR #${{ github.event.pull_request.number }}
+
+          **Source PR:** ${{ github.event.pull_request.html_url }}
+          **Source Ref:** ${{ github.event.pull_request.head.ref }}
+          **Source SHA:** ${{ github.event.pull_request.head.sha }}
+
+          This PR tests the trusted-go-releaser workflow and should be automatically merged." \
+            --head "$BRANCH_NAME" \
+            --base main \
+            --label "bump:patch"
+
+          # Store PR number for later use
+          PR_NUMBER=$(gh pr list --repo actionutils/test-trusted-go-releaser --head "$BRANCH_NAME" --json number --jq '.[0].number')
+          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
+
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.TEST_TRUSTED_GO_RELEASER_REPO_GITHUB_TOKEN }}
+        run: |
+          # Wait a moment for the PR to be fully created
+          sleep 5
+
+          # Enable auto-merge
+          gh pr merge $PR_NUMBER \
+            --repo actionutils/test-trusted-go-releaser \
+            --auto \
+            --squash \
+            --delete-branch
+
+          echo "Auto-merge enabled for PR #$PR_NUMBER"
+
+      - name: Output test PR info
+        run: |
+          echo "✅ E2E test PR created successfully!"
+          echo "PR URL: https://github.com/actionutils/test-trusted-go-releaser/pull/$PR_NUMBER"
+          echo "Check the test repository for workflow execution and release creation."
