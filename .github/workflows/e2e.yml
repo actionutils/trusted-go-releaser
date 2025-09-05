@@ -18,8 +18,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Create test base branch name
-          TEST_BASE_BRANCH="test-base-pr-${{ github.event.pull_request.number }}"
+          # Create test base branch name with timestamp for uniqueness
+          TEST_BASE_BRANCH="test-base-pr-${{ github.event.pull_request.number }}-$(date +%s)"
           echo "TEST_BASE_BRANCH=$TEST_BASE_BRANCH" >> $GITHUB_ENV
 
           # Create base branch from main with sed changes
