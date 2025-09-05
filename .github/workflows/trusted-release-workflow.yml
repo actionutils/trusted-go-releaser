@@ -279,13 +279,13 @@ jobs:
                gh attestation verify --repo=${{ github.repository }} --signer-workflow='${{ github.repository }}/.github/workflows/trusted-release-workflow.yml' "$tmpfile" && \
                sh "$tmpfile"; rm -f "$tmpfile")
           ```
-BINSTALLER_EOF
+          BINSTALLER_EOF
           fi
 
           cat >> "$TEMP_FILE" << 'CLOSING_EOF'
 
           </details>
-CLOSING_EOF
+          CLOSING_EOF
 
           # Combine current body with verification instructions
           NEW_BODY="${CURRENT_BODY}$(cat "$TEMP_FILE")"
