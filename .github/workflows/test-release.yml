@@ -1,0 +1,19 @@
+name: Test Trusted Go Releaser
+
+on:
+  push:
+
+jobs:
+  test-release:
+    permissions:
+      id-token: write    # Required for signed tags
+      contents: write    # Required for release and tag creation
+      pull-requests: write # Required for bumpr commenting
+      attestations: write # Required for build provenance attestation
+    uses: ./.github/workflows/trusted-release-workflow.yml
+    with:
+      draft: true
+      # TODO: add flags for testing. e.g. test_repository
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
