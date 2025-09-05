@@ -13,19 +13,34 @@ jobs:
           repository: actionutils/test-trusted-go-releaser
           token: ${{ secrets.TEST_TRUSTED_GO_RELEASER_REPO_GITHUB_TOKEN }}
 
-      - name: Create test branch
+      - name: Create test base branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Create a unique branch name based on PR info
-          BRANCH_NAME="test-pr-${{ github.event.pull_request.number }}-$(date +%s)"
-          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          # Create test base branch name
+          TEST_BASE_BRANCH="test-base-pr-${{ github.event.pull_request.number }}"
+          echo "TEST_BASE_BRANCH=$TEST_BASE_BRANCH" >> $GITHUB_ENV
 
-          git checkout -b "$BRANCH_NAME"
+          # Create base branch from main with sed changes
+          git checkout -b "$TEST_BASE_BRANCH"
 
           # Update release.yml to use the PR branch instead of @main
           sed -i 's|actionutils/trusted-go-releaser/\.github/workflows/\([^@]*\)@main|actionutils/trusted-go-releaser/.github/workflows/\1@${{ github.event.pull_request.head.ref }}|g' .github/workflows/release.yml
+
+          git add .github/workflows/release.yml
+          git commit -m "chore: update workflow refs to use PR branch ${{ github.event.pull_request.head.ref }}"
+
+          git push origin "$TEST_BASE_BRANCH"
+
+      - name: Create feature branch
+        run: |
+          # Create feature branch name
+          FEATURE_BRANCH="test-feature-pr-${{ github.event.pull_request.number }}-$(date +%s)"
+          echo "FEATURE_BRANCH=$FEATURE_BRANCH" >> $GITHUB_ENV
+
+          # Create feature branch from the test base branch
+          git checkout -b "$FEATURE_BRANCH"
 
           # Make a minimal change to trigger a release
           echo "# Test change for PR #${{ github.event.pull_request.number }}" >> README.md
@@ -37,7 +52,7 @@ jobs:
           This is a test commit to validate the trusted-go-releaser workflow
           using ref: ${{ github.event.pull_request.head.ref }}"
 
-          git push origin "$BRANCH_NAME"
+          git push origin "$FEATURE_BRANCH"
 
       - name: Create PR with bump:patch label
         env:
@@ -52,33 +67,32 @@ jobs:
           **Source Ref:** ${{ github.event.pull_request.head.ref }}
           **Source SHA:** ${{ github.event.pull_request.head.sha }}
 
-          This PR tests the trusted-go-releaser workflow and should be automatically merged." \
-            --head "$BRANCH_NAME" \
-            --base main \
+          This PR tests the trusted-go-releaser workflow." \
+            --head "$FEATURE_BRANCH" \
+            --base "$TEST_BASE_BRANCH" \
             --label "bump:patch"
 
           # Store PR number for later use
-          PR_NUMBER=$(gh pr list --repo actionutils/test-trusted-go-releaser --head "$BRANCH_NAME" --json number --jq '.[0].number')
+          PR_NUMBER=$(gh pr list --repo actionutils/test-trusted-go-releaser --head "$FEATURE_BRANCH" --json number --jq '.[0].number')
           echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
 
-      - name: Enable auto-merge
+      - name: Merge PR
         env:
           GH_TOKEN: ${{ secrets.TEST_TRUSTED_GO_RELEASER_REPO_GITHUB_TOKEN }}
         run: |
           # Wait a moment for the PR to be fully created
           sleep 5
 
-          # Enable auto-merge
+          # Merge the PR directly
           gh pr merge $PR_NUMBER \
             --repo actionutils/test-trusted-go-releaser \
-            --auto \
             --squash \
             --delete-branch
 
-          echo "Auto-merge enabled for PR #$PR_NUMBER"
+          echo "PR #$PR_NUMBER merged successfully"
 
       - name: Output test PR info
         run: |
-          echo "✅ E2E test PR created successfully!"
+          echo "✅ E2E test PR created and merged successfully!"
           echo "PR URL: https://github.com/actionutils/test-trusted-go-releaser/pull/$PR_NUMBER"
           echo "Check the test repository for workflow execution and release creation."
