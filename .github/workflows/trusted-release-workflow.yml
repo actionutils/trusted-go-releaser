@@ -87,6 +87,7 @@ jobs:
     outputs:
       artifacts: ${{ steps.goreleaser.outputs.artifacts }}
       checksum_file: ${{ steps.checksumtxt.outputs.checksum_file }}
+      config_exists: ${{ steps.check-config.outputs.config_exists }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -180,17 +181,9 @@ jobs:
           fetch-depth: 0
           ref: ${{ needs.version.outputs.tag_name }}
 
-      - name: Update GitHub Release
-        id: update_release
-        env:
-          GITHUB_TOKEN: ${{ secrets.github-token }}
+      - name: Create base verification instructions
+        id: create_base_instructions
         run: |
-          TAG_NAME="${{ needs.version.outputs.tag_name }}"
-
-          # Get current release body
-          CURRENT_BODY=$(gh release view "$TAG_NAME" --json body --jq '.body')
-
-          # Create verification instructions
           TEMP_FILE=$(mktemp)
           cat > "$TEMP_FILE" << 'EOF'
 
@@ -230,10 +223,17 @@ jobs:
           ```
 
           EOF
+          echo "base_instructions_file=$TEMP_FILE" >> $GITHUB_OUTPUT
 
-          # Add binstaller instructions if config exists
-          if [[ "${{ steps.check-config.outputs.config_exists }}" == "true" ]]; then
-            cat >> "$TEMP_FILE" << 'BINSTALLER_EOF'
+      - name: Add binstaller instructions
+        id: add_binstaller_instructions
+        run: |
+          BASE_FILE="${{ steps.create_base_instructions.outputs.base_instructions_file }}"
+          echo "Binstaller config exists: ${{ needs.goreleaser.outputs.config_exists }}"
+
+          if [[ "${{ needs.goreleaser.outputs.config_exists }}" == "true" ]]; then
+            echo "Adding binstaller instructions..."
+            cat >> "$BASE_FILE" << 'BINSTALLER_EOF'
 
           ## Installation Scripts
 
@@ -280,15 +280,37 @@ jobs:
                sh "$tmpfile"; rm -f "$tmpfile")
           ```
           BINSTALLER_EOF
+          else
+            echo "No binstaller config found, skipping binstaller instructions"
           fi
 
-          cat >> "$TEMP_FILE" << 'CLOSING_EOF'
+          echo "instructions_file=$BASE_FILE" >> $GITHUB_OUTPUT
+
+      - name: Finalize verification instructions
+        id: finalize_instructions
+        run: |
+          INSTRUCTIONS_FILE="${{ steps.add_binstaller_instructions.outputs.instructions_file }}"
+          cat >> "$INSTRUCTIONS_FILE" << 'CLOSING_EOF'
 
           </details>
           CLOSING_EOF
+          echo "final_instructions_file=$INSTRUCTIONS_FILE" >> $GITHUB_OUTPUT
+
+      - name: Update GitHub Release
+        id: update_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.github-token }}
+        run: |
+          TAG_NAME="${{ needs.version.outputs.tag_name }}"
+
+          # Get current release body
+          CURRENT_BODY=$(gh release view "$TAG_NAME" --json body --jq '.body')
+
+          # Get final verification instructions
+          VERIFICATION_INSTRUCTIONS=$(cat "${{ steps.finalize_instructions.outputs.final_instructions_file }}")
 
           # Combine current body with verification instructions
-          NEW_BODY="${CURRENT_BODY}$(cat "$TEMP_FILE")"
+          NEW_BODY="${CURRENT_BODY}${VERIFICATION_INSTRUCTIONS}"
 
           # Update release with combined body
           RELEASE_URL=$(gh release edit "$TAG_NAME" \
