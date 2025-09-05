@@ -206,7 +206,7 @@ jobs:
           go install github.com/sigstore/cosign/v2/cmd/cosign@latest
 
           # Download the release assets
-          gh release download ${{ needs.version.outputs.tag_name }}
+          gh release download ${{ needs.version.outputs.tag_name }} --repo ${{ github.repository }}
 
           # Verify the checksum file signature
           cosign verify-blob \
@@ -226,7 +226,7 @@ jobs:
 
           ```bash
           # Verify attestations for the checksum file
-          gh attestation verify "${{ needs.goreleaser.outputs.checksum_file }}" --repo ${{ github.repository }} --signer-workflow='${{ github.repository }}/.github/workflows/trusted-release-workflow.yml'
+          gh attestation verify "${{ needs.goreleaser.outputs.checksum_file }}" --repo ${{ github.repository }} --signer-workflow='actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml'
           ```
 
           EOF
@@ -248,13 +248,13 @@ jobs:
 
           ```bash
           # Download the scripts
-          gh release download ${{ needs.version.outputs.tag_name }} --pattern "*.sh"
+          gh release download ${{ needs.version.outputs.tag_name }} --pattern "*.sh" --repo ${{ github.repository }}
 
           # Verify the install script
-          gh attestation verify install.sh --repo ${{ github.repository }} --signer-workflow='${{ github.repository }}/.github/workflows/trusted-release-workflow.yml'
+          gh attestation verify install.sh --repo ${{ github.repository }} --signer-workflow='actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml'
 
           # Verify the run script
-          gh attestation verify run.sh --repo ${{ github.repository }} --signer-workflow='${{ github.repository }}/.github/workflows/trusted-release-workflow.yml'
+          gh attestation verify run.sh --repo ${{ github.repository }} --signer-workflow='actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml'
           ```
 
           ### Using Installation Scripts
@@ -276,7 +276,7 @@ jobs:
           # Install with attestation verification
           curl -sL "https://github.com/${{ github.repository }}/releases/download/${VERSION}/install.sh" | \
               (tmpfile=$(mktemp); cat > "$tmpfile"; \
-               gh attestation verify --repo=${{ github.repository }} --signer-workflow='${{ github.repository }}/.github/workflows/trusted-release-workflow.yml' "$tmpfile" && \
+               gh attestation verify --repo=${{ github.repository }} --signer-workflow='actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml' "$tmpfile" && \
                sh "$tmpfile"; rm -f "$tmpfile")
           ```
           BINSTALLER_EOF
