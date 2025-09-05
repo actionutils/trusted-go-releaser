@@ -91,8 +91,62 @@ jobs:
 
           echo "PR #$PR_NUMBER merged successfully"
 
+      - name: Revert base branch changes
+        env:
+          GH_TOKEN: ${{ secrets.TEST_TRUSTED_GO_RELEASER_REPO_GITHUB_TOKEN }}
+        run: |
+          # Switch back to the test base branch
+          git checkout "$TEST_BASE_BRANCH"
+
+          # Pull the latest changes including the merge result
+          git pull origin "$TEST_BASE_BRANCH"
+
+          # Check what commits differ from main
+          COMMITS_TO_REVERT=$(git rev-list --reverse main.."$TEST_BASE_BRANCH")
+          echo "Commits to revert: $COMMITS_TO_REVERT"
+
+          # Revert all commits that differ from main (in reverse order)
+          if [ -n "$COMMITS_TO_REVERT" ]; then
+            for commit in $COMMITS_TO_REVERT; do
+              git revert $commit --no-edit
+            done
+          else
+            echo "No commits to revert - base branch is same as main"
+          fi
+
+          # Push the reverted changes
+          git push origin "$TEST_BASE_BRANCH"
+
+          echo "Reverted all base branch changes to restore original state"
+
+      - name: Merge base branch to main
+        run: |
+          # Switch to main branch
+          git checkout main
+
+          # Pull latest main
+          git pull origin main
+
+          # Merge the base branch directly
+          git merge "$TEST_BASE_BRANCH" --no-ff -m "Merge test results back to main (PR #${{ github.event.pull_request.number }})
+
+          Original test PR: https://github.com/actionutils/test-trusted-go-releaser/pull/$PR_NUMBER
+          Source trusted-go-releaser PR: ${{ github.event.pull_request.html_url }}
+
+          This ensures tags created during testing are accessible from main branch via git tag --merged."
+
+          # Push the merged main
+          git push origin main
+
+          # Clean up the test base branch
+          git push origin --delete "$TEST_BASE_BRANCH"
+
+          echo "Merged test base branch to main directly"
+
       - name: Output test PR info
         run: |
-          echo "✅ E2E test PR created and merged successfully!"
-          echo "PR URL: https://github.com/actionutils/test-trusted-go-releaser/pull/$PR_NUMBER"
+          echo "✅ E2E test completed successfully!"
+          echo "Test PR URL: https://github.com/actionutils/test-trusted-go-releaser/pull/$PR_NUMBER"
+          echo "Base branch merged directly to main - no PR created"
           echo "Check the test repository for workflow execution and release creation."
+          echo "Tags should now be trackable from main branch via 'git tag --merged'."
