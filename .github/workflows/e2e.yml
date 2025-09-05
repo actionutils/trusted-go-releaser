@@ -102,52 +102,29 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.TEST_TRUSTED_GO_RELEASER_REPO_GITHUB_TOKEN }}
         run: |
-          echo "Waiting for release workflow to complete..."
-
-          # Wait for workflows to start (give some time for webhook processing)
+          echo "Waiting for release workflow to start..."
           sleep 30
 
-          # Monitor workflow runs for up to 10 minutes
-          for i in {1..20}; do
-            echo "Check $i/20..."
+          # Get the latest workflow run for the Release workflow on the test base branch
+          LATEST_RUN_ID=$(gh run list \
+            --repo actionutils/test-trusted-go-releaser \
+            --workflow=release.yml \
+            --branch="$TEST_BASE_BRANCH" \
+            --limit=1 \
+            --json=databaseId \
+            --jq='.[0].databaseId')
 
-            # Get the latest workflow runs on the test base branch
-            WORKFLOW_RUNS=$(gh api \
-              --method GET \
-              repos/actionutils/test-trusted-go-releaser/actions/runs \
-              --field "branch=$TEST_BASE_BRANCH" \
-              --field "per_page=5" \
-              --jq '.workflow_runs[] | select(.name == "Release") | {id: .id, status: .status, conclusion: .conclusion, html_url: .html_url}')
+          if [ -n "$LATEST_RUN_ID" ] && [ "$LATEST_RUN_ID" != "null" ]; then
+            echo "Found release workflow run: $LATEST_RUN_ID"
+            echo "Watching workflow progress..."
 
-            if [ -n "$WORKFLOW_RUNS" ]; then
-              echo "Found release workflows:"
-              echo "$WORKFLOW_RUNS" | jq -r '"Workflow \(.id): \(.status) (\(.conclusion // "pending")) - \(.html_url)"'
+            # Watch the workflow run until completion
+            gh run watch $LATEST_RUN_ID --repo actionutils/test-trusted-go-releaser
 
-              # Check if all workflows are completed
-              PENDING_WORKFLOWS=$(echo "$WORKFLOW_RUNS" | jq -r 'select(.status != "completed") | .id' | wc -l)
-
-              if [ "$PENDING_WORKFLOWS" -eq 0 ]; then
-                echo "✅ All release workflows completed!"
-
-                # Check if any failed
-                FAILED_WORKFLOWS=$(echo "$WORKFLOW_RUNS" | jq -r 'select(.conclusion == "failure") | .id' | wc -l)
-                if [ "$FAILED_WORKFLOWS" -gt 0 ]; then
-                  echo "⚠️ Some workflows failed - check the links above"
-                else
-                  echo "✅ All workflows completed successfully!"
-                fi
-                break
-              else
-                echo "⏳ $PENDING_WORKFLOWS workflows still running..."
-              fi
-            else
-              echo "No release workflows found yet..."
-            fi
-
-            sleep 30
-          done
-
-          echo "Workflow monitoring completed"
+            echo "✅ Release workflow completed!"
+          else
+            echo "⚠️ No release workflow run found for branch $TEST_BASE_BRANCH"
+          fi
 
       - name: Revert base branch changes
         env:
