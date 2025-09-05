@@ -121,9 +121,6 @@ jobs:
             echo "No commits to revert - base branch is same as main"
           fi
 
-          # Push the reverted changes
-          git push origin "$TEST_BASE_BRANCH"
-
           echo "Reverted all base branch changes to restore original state"
 
       - name: Merge base branch to main
