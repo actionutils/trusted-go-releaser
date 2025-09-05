@@ -192,12 +192,11 @@ jobs:
 
           ## Verifying Release Artifacts
 
-          All release artifacts are signed using [Sigstore](https://sigstore.dev/) and can be verified using `cosign`:
+          ### Using Cosign
+
+          All release artifacts are signed using [Sigstore](https://sigstore.dev/) and can be verified using [cosign](https://github.com/sigstore/cosign):
 
           ```bash
-          # Install cosign
-          go install github.com/sigstore/cosign/v2/cmd/cosign@latest
-
           # Download the release assets
           gh release download ${{ needs.version.outputs.tag_name }} --repo ${{ github.repository }}
 
@@ -213,7 +212,7 @@ jobs:
           sha256sum --ignore-missing -c "${{ needs.goreleaser.outputs.checksum_file }}"
           ```
 
-          ## GitHub Attestations
+          ### Using GitHub Attestations
 
           All artifacts have [GitHub Attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds) that can be verified:
 
