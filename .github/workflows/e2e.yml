@@ -62,14 +62,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.TEST_TRUSTED_GO_RELEASER_REPO_GITHUB_TOKEN }}
         run: |
+          # Get commit short hash for title
+          COMMIT_SHORT_SHA=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-8)
+
           gh pr create \
             --repo actionutils/test-trusted-go-releaser \
-            --title "Test release for trusted-go-releaser PR #${{ github.event.pull_request.number }}" \
+            --title "Test release for trusted-go-releaser PR #${{ github.event.pull_request.number }} ($COMMIT_SHORT_SHA)" \
             --body "Automated test PR created from trusted-go-releaser PR #${{ github.event.pull_request.number }}
 
           **Source PR:** ${{ github.event.pull_request.html_url }}
-          **Source Ref:** ${{ github.event.pull_request.head.ref }}
-          **Source SHA:** ${{ github.event.pull_request.head.sha }}
+          **Source Ref:** https://github.com/actionutils/trusted-go-releaser/tree/${{ github.event.pull_request.head.ref }}
+          **Source SHA:** https://github.com/actionutils/trusted-go-releaser/commit/${{ github.event.pull_request.head.sha }}
 
           This PR tests the trusted-go-releaser workflow." \
             --head "$FEATURE_BRANCH" \
