@@ -31,6 +31,9 @@ on:
         description: 'URL of the created GitHub release'
         value: ${{ jobs.release.outputs.release_url }}
 
+permissions:
+  contents: read
+
 jobs:
   # Version management and tag creation job
   version:
@@ -43,6 +46,11 @@ jobs:
       tag_name: ${{ steps.tag.outputs.value }}
       version: ${{ steps.extract-version.outputs.version }}
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
@@ -89,6 +97,11 @@ jobs:
       checksum_file: ${{ steps.checksumtxt.outputs.checksum_file }}
       config_exists: ${{ steps.check-config.outputs.config_exists }}
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
@@ -176,6 +189,11 @@ jobs:
     outputs:
       release_url: ${{ steps.update_release.outputs.release_url }}
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -327,6 +345,11 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.8.1
 
