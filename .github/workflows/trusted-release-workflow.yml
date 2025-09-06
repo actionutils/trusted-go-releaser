@@ -230,6 +230,12 @@ jobs:
           BASE_FILE="${{ steps.create_base_instructions.outputs.base_instructions_file }}"
           echo "Binstaller config exists: ${{ needs.goreleaser.outputs.config_exists }}"
 
+          # Close the verification instructions details
+          cat >> "$BASE_FILE" << 'CLOSE_VERIFICATION_EOF'
+
+          </details>
+          CLOSE_VERIFICATION_EOF
+
           if [[ "${{ needs.goreleaser.outputs.config_exists }}" == "true" ]]; then
             echo "Adding binstaller instructions..."
             cat >> "$BASE_FILE" << 'BINSTALLER_EOF'
@@ -288,15 +294,6 @@ jobs:
 
           echo "instructions_file=$BASE_FILE" >> $GITHUB_OUTPUT
 
-      - name: Finalize verification instructions
-        id: finalize_instructions
-        run: |
-          INSTRUCTIONS_FILE="${{ steps.add_binstaller_instructions.outputs.instructions_file }}"
-          cat >> "$INSTRUCTIONS_FILE" << 'CLOSING_EOF'
-
-          </details>
-          CLOSING_EOF
-          echo "final_instructions_file=$INSTRUCTIONS_FILE" >> $GITHUB_OUTPUT
 
       - name: Update GitHub Release
         id: update_release
@@ -309,7 +306,7 @@ jobs:
           CURRENT_BODY=$(gh release view "$TAG_NAME" --json body --jq '.body')
 
           # Get final verification instructions
-          VERIFICATION_INSTRUCTIONS=$(cat "${{ steps.finalize_instructions.outputs.final_instructions_file }}")
+          VERIFICATION_INSTRUCTIONS=$(cat "${{ steps.add_binstaller_instructions.outputs.instructions_file }}")
 
           # Combine current body with verification instructions
           NEW_BODY="${CURRENT_BODY}${VERIFICATION_INSTRUCTIONS}"
