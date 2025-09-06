@@ -21,9 +21,10 @@ jobs:
     # Skip for fork PRs when triggered by pull_request event (no access to secrets)
     # For fork PRs, use workflow_dispatch with the fork's commit SHA to test manually
     # GitHub allows referencing commits from forks using @SHA in workflow references
+    # Using github.event.repository.fork to check if current repo context is a fork
     if: |
       (github.event_name == 'workflow_dispatch') ||
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+      (github.event_name == 'pull_request' && github.event.repository.fork != true)
     runs-on: ubuntu-latest
     steps:
       - name: Harden the runner (Audit all outbound calls)
