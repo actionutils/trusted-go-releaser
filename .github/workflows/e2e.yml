@@ -33,13 +33,34 @@ jobs:
 
       - name: Set environment variables based on event type
         id: vars
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             # For manual triggers
-            PR_NUMBER="${{ github.event.inputs.pr_number || 'manual' }}"
-            SHA="${{ github.event.inputs.sha || github.sha }}"
-            HEAD_REF="${{ github.ref_name }}"
-            PR_URL="Manual trigger from branch: ${{ github.ref_name }}"
+            if [ -n "${{ github.event.inputs.pr_number }}" ]; then
+              PR_NUMBER="${{ github.event.inputs.pr_number }}"
+
+              # If SHA not provided, fetch from PR
+              if [ -z "${{ github.event.inputs.sha }}" ]; then
+                echo "Fetching PR #${PR_NUMBER} information..."
+                PR_INFO=$(gh pr view ${PR_NUMBER} --repo ${{ github.repository }} --json headRefOid,headRefName,url)
+                SHA=$(echo "$PR_INFO" | jq -r '.headRefOid')
+                HEAD_REF=$(echo "$PR_INFO" | jq -r '.headRefName')
+                PR_URL=$(echo "$PR_INFO" | jq -r '.url')
+                echo "Fetched SHA: $SHA"
+              else
+                SHA="${{ github.event.inputs.sha }}"
+                HEAD_REF="${{ github.ref_name }}"
+                PR_URL="https://github.com/${{ github.repository }}/pull/${PR_NUMBER}"
+              fi
+            else
+              # No PR number provided
+              PR_NUMBER="manual"
+              SHA="${{ github.event.inputs.sha || github.sha }}"
+              HEAD_REF="${{ github.ref_name }}"
+              PR_URL="Manual trigger from branch: ${{ github.ref_name }}"
+            fi
           else
             # For pull_request events
             PR_NUMBER="${{ github.event.pull_request.number }}"
