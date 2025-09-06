@@ -43,6 +43,8 @@ jobs:
           git push origin "$TEST_BASE_BRANCH"
 
       - name: Create feature branch
+        env:
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           # Create feature branch name
           FEATURE_BRANCH="test-feature-pr-${{ github.event.pull_request.number }}-$(date +%s)"
@@ -59,13 +61,14 @@ jobs:
           git commit -m "test: trigger release for trusted-go-releaser PR #${{ github.event.pull_request.number }}
 
           This is a test commit to validate the trusted-go-releaser workflow
-          using ref: ${{ github.event.pull_request.head.ref }}"
+          using ref: $PR_HEAD_REF"
 
           git push origin "$FEATURE_BRANCH"
 
       - name: Create PR with bump:patch label
         env:
           GH_TOKEN: ${{ secrets.TEST_TRUSTED_GO_RELEASER_REPO_GITHUB_TOKEN }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           # Get commit short hash for title
           COMMIT_SHORT_SHA=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-8)
@@ -76,7 +79,7 @@ jobs:
             --body "Automated test PR created from trusted-go-releaser PR #${{ github.event.pull_request.number }}
 
           **Source PR:** ${{ github.event.pull_request.html_url }}
-          **Source Ref:** https://github.com/actionutils/trusted-go-releaser/tree/${{ github.event.pull_request.head.ref }}
+          **Source Ref:** https://github.com/actionutils/trusted-go-releaser/tree/$PR_HEAD_REF
           **Source SHA:** https://github.com/actionutils/trusted-go-releaser/commit/${{ github.event.pull_request.head.sha }}
 
           This PR tests the trusted-go-releaser workflow." \
