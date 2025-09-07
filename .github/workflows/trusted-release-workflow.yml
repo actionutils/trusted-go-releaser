@@ -110,7 +110,7 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - uses: sigstore/cosign-installer@v3.8.1 # installs cosign
+      - uses: sigstore/cosign-installer@v3.9.2 # installs cosign
       - uses: anchore/sbom-action/download-syft@v0.18.0 # installs syft
       - uses: goreleaser/goreleaser-action@v6 # run goreleaser
         id: goreleaser
@@ -351,7 +351,7 @@ jobs:
           egress-policy: audit
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@v3.8.1
+        uses: sigstore/cosign-installer@v3.9.2
 
       - name: Download assets
         env:
