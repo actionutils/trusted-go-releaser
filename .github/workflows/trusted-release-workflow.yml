@@ -111,7 +111,7 @@ jobs:
           go-version-file: "go.mod"
 
       - uses: sigstore/cosign-installer@v3.9.2 # installs cosign
-      - uses: anchore/sbom-action/download-syft@v0.18.0 # installs syft
+      - uses: anchore/sbom-action/download-syft@v0.20.5 # installs syft
       - uses: goreleaser/goreleaser-action@v6 # run goreleaser
         id: goreleaser
         with:
