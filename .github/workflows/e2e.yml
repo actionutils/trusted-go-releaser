@@ -38,6 +38,7 @@ jobs:
         id: vars
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             # For manual triggers
@@ -47,7 +48,7 @@ jobs:
               # If SHA not provided, fetch from PR
               if [ -z "${{ github.event.inputs.sha }}" ]; then
                 echo "Fetching PR #${PR_NUMBER} information..."
-                PR_INFO=$(gh pr view ${PR_NUMBER} --repo ${{ github.repository }} --json headRefOid,headRefName,url)
+                PR_INFO=$(gh pr view "${PR_NUMBER}" --repo "${{ github.repository }}" --json headRefOid,headRefName,url)
                 SHA=$(echo "$PR_INFO" | jq -r '.headRefOid')
                 HEAD_REF=$(echo "$PR_INFO" | jq -r '.headRefName')
                 PR_URL=$(echo "$PR_INFO" | jq -r '.url')
@@ -68,16 +69,18 @@ jobs:
             # For pull_request events
             PR_NUMBER="${{ github.event.pull_request.number }}"
             SHA="${{ github.event.pull_request.head.sha }}"
-            HEAD_REF="${{ github.event.pull_request.head.ref }}"
+            HEAD_REF="$PR_HEAD_REF"
             PR_URL="${{ github.event.pull_request.html_url }}"
           fi
 
           # Set outputs for use in other steps
-          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
-          echo "sha=$SHA" >> $GITHUB_OUTPUT
-          echo "head_ref=$HEAD_REF" >> $GITHUB_OUTPUT
-          echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
-          echo "sha_short=$(echo $SHA | cut -c1-8)" >> $GITHUB_OUTPUT
+          {
+            echo "pr_number=$PR_NUMBER"
+            echo "sha=$SHA"
+            echo "head_ref=$HEAD_REF"
+            echo "pr_url=$PR_URL"
+            echo "sha_short=$(echo "$SHA" | cut -c1-8)"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create initial status check
         if: github.event_name == 'workflow_dispatch'
@@ -88,7 +91,7 @@ jobs:
           # Create pending status
           gh api \
             --method POST \
-            repos/${{ github.repository }}/statuses/$SHA \
+            repos/${{ github.repository }}/statuses/"$SHA" \
             --field state="pending" \
             --field description="E2E test is running..." \
             --field context="E2E Test / test" \
@@ -113,7 +116,7 @@ jobs:
         run: |
           # Create test base branch name
           TEST_BASE_BRANCH="release-test-base-pr-${PR_NUMBER}-${SHA_SHORT}"
-          echo "TEST_BASE_BRANCH=$TEST_BASE_BRANCH" >> $GITHUB_ENV
+          echo "TEST_BASE_BRANCH=$TEST_BASE_BRANCH" >> "$GITHUB_ENV"
 
           # Create and checkout new branch
           git checkout -b "$TEST_BASE_BRANCH"
@@ -133,7 +136,7 @@ jobs:
         run: |
           # Create feature branch name with timestamp
           FEATURE_BRANCH="test-feature-pr-${PR_NUMBER}-$(date +%s)"
-          echo "FEATURE_BRANCH=$FEATURE_BRANCH" >> $GITHUB_ENV
+          echo "FEATURE_BRANCH=$FEATURE_BRANCH" >> "$GITHUB_ENV"
 
           # Create and checkout feature branch
           git checkout -b "$FEATURE_BRANCH"
@@ -177,7 +180,7 @@ jobs:
 
           # Store PR number for later use
           TEST_PR_NUMBER=$(gh pr list --repo actionutils/test-trusted-go-releaser --head "$FEATURE_BRANCH" --json number --jq '.[0].number')
-          echo "TEST_PR_NUMBER=$TEST_PR_NUMBER" >> $GITHUB_ENV
+          echo "TEST_PR_NUMBER=$TEST_PR_NUMBER" >> "$GITHUB_ENV"
 
       - name: Merge PR
         env:
@@ -187,7 +190,7 @@ jobs:
           sleep 5
 
           # Merge the PR directly
-          gh pr merge $TEST_PR_NUMBER \
+          gh pr merge "$TEST_PR_NUMBER" \
             --repo actionutils/test-trusted-go-releaser \
             --squash \
             --delete-branch
@@ -202,7 +205,7 @@ jobs:
         run: |
           gh api \
             --method POST \
-            repos/${{ github.repository }}/statuses/$SHA \
+            repos/${{ github.repository }}/statuses/"$SHA" \
             --field state="pending" \
             --field description="Test PR merged, waiting for release workflow..." \
             --field context="E2E Test / test" \
@@ -229,7 +232,7 @@ jobs:
             echo "Watching workflow progress..."
 
             # Watch the workflow run until completion
-            gh run watch $LATEST_RUN_ID --repo actionutils/test-trusted-go-releaser
+            gh run watch "$LATEST_RUN_ID" --repo actionutils/test-trusted-go-releaser
 
             echo "✅ Release workflow completed!"
           else
@@ -253,7 +256,7 @@ jobs:
           # Revert all commits that differ from main (in reverse order)
           if [ -n "$COMMITS_TO_REVERT" ]; then
             for commit in $COMMITS_TO_REVERT; do
-              git revert $commit --no-edit
+              git revert "$commit" --no-edit
             done
           else
             echo "No commits to revert - base branch is same as main"
@@ -294,7 +297,7 @@ jobs:
         run: |
           gh api \
             --method POST \
-            repos/${{ github.repository }}/statuses/$SHA \
+            repos/${{ github.repository }}/statuses/"$SHA" \
             --field state="success" \
             --field description="E2E test completed successfully" \
             --field context="E2E Test / test" \
@@ -308,7 +311,7 @@ jobs:
         run: |
           gh api \
             --method POST \
-            repos/${{ github.repository }}/statuses/$SHA \
+            repos/${{ github.repository }}/statuses/"$SHA" \
             --field state="failure" \
             --field description="E2E test failed" \
             --field context="E2E Test / test" \

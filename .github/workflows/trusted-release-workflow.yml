@@ -66,11 +66,11 @@ jobs:
       - id: tag
         run: |
           if [[ "${{ steps.bumpr.outputs.skip }}" == "true" ]]; then
-            echo "value=" >> $GITHUB_OUTPUT
+            echo "value=" >> "$GITHUB_OUTPUT"
             echo "No version bump label found, skipping release."
           else
             TAG="${{ steps.bumpr.outputs.next_version }}"
-            echo "value=${TAG}" >> $GITHUB_OUTPUT
+            echo "value=${TAG}" >> "$GITHUB_OUTPUT"
             echo "Next version: ${TAG}"
           fi
 
@@ -78,10 +78,10 @@ jobs:
       - id: extract-version
         if: steps.tag.outputs.value != ''
         run: |
-          TAG=${{ steps.tag.outputs.value }}
-          VERSION=${TAG#refs/tags/v}
-          VERSION=${VERSION#v}
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          TAG="${{ steps.tag.outputs.value }}"
+          VERSION="${TAG#refs/tags/v}"
+          VERSION="${VERSION#v}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Extracted version: ${VERSION}"
 
   goreleaser:
@@ -126,7 +126,7 @@ jobs:
         run: |
           checksum_file=$(echo "$ARTIFACTS" | jq -r '.[] | select (.type=="Checksum") | .name')
           echo "checksum file: ${checksum_file}"
-          echo "checksum_file=${checksum_file}" >> $GITHUB_OUTPUT
+          echo "checksum_file=${checksum_file}" >> "$GITHUB_OUTPUT"
       - uses: actions/attest-build-provenance@v3
         with:
           subject-checksums: ./dist/${{ steps.checksumtxt.outputs.checksum_file }}
@@ -140,10 +140,10 @@ jobs:
         id: check-config
         run: |
           if [[ -f .config/binstaller.yml || -f .config/binstaller.yaml ]]; then
-            echo "config_exists=true" >> $GITHUB_OUTPUT
+            echo "config_exists=true" >> "$GITHUB_OUTPUT"
             echo "Binstaller config found"
           else
-            echo "config_exists=false" >> $GITHUB_OUTPUT
+            echo "config_exists=false" >> "$GITHUB_OUTPUT"
             echo "No binstaller config found, skipping binstaller steps"
           fi
       - uses: actionutils/trusted-tag-verifier@v0
@@ -160,7 +160,7 @@ jobs:
         if: steps.check-config.outputs.config_exists == 'true'
         env:
           checksum_file: ${{ steps.checksumtxt.outputs.checksum_file }}
-        run: binst embed-checksums --mode=checksum-file --file=./dist/${checksum_file} --version='${{ needs.version.outputs.tag_name }}'
+        run: binst embed-checksums --mode=checksum-file --file="./dist/${checksum_file}" --version='${{ needs.version.outputs.tag_name }}'
       - name: Generate installer and runner scripts
         if: steps.check-config.outputs.config_exists == 'true'
         run: |
@@ -240,7 +240,7 @@ jobs:
           ```
 
           EOF
-          echo "base_instructions_file=$TEMP_FILE" >> $GITHUB_OUTPUT
+          echo "base_instructions_file=$TEMP_FILE" >> "$GITHUB_OUTPUT"
 
       - name: Add binstaller instructions
         id: add_binstaller_instructions
@@ -310,7 +310,7 @@ jobs:
             echo "No binstaller config found, skipping binstaller instructions"
           fi
 
-          echo "instructions_file=$BASE_FILE" >> $GITHUB_OUTPUT
+          echo "instructions_file=$BASE_FILE" >> "$GITHUB_OUTPUT"
 
 
       - name: Update GitHub Release
@@ -335,7 +335,7 @@ jobs:
             --notes "$NEW_BODY" \
             --draft=${{ inputs.draft }})
 
-          echo "release_url=$RELEASE_URL" >> $GITHUB_OUTPUT
+          echo "release_url=$RELEASE_URL" >> "$GITHUB_OUTPUT"
           echo "Release URL: $RELEASE_URL"
 
   # https://goreleaser.com/install/#verifying-the-artifacts
@@ -358,7 +358,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ needs.version.outputs.tag_name }}
         run: |
-          gh -R "$GITHUB_REPOSITORY" release download "$TAG_NAME"
+          gh -R "${GITHUB_REPOSITORY}" release download "${TAG_NAME}"
 
       - name: Verify checksum signature
         env:
