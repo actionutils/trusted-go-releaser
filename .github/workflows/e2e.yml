@@ -18,13 +18,14 @@ permissions:
 
 jobs:
   test:
-    # Skip for fork PRs when triggered by pull_request event (no access to secrets)
-    # For fork PRs, use workflow_dispatch with the fork's commit SHA to test manually
+    # Skip for fork PRs and Dependabot PRs when triggered by pull_request event
+    # - Fork PRs: no access to secrets
+    # - Dependabot PRs: not necessary to test dependency updates
+    # For these PRs, use workflow_dispatch with the commit SHA to test manually if needed
     # GitHub allows referencing commits from forks using @SHA in workflow references
-    # Using github.event.repository.fork to check if current repo context is a fork
     if: |
       (github.event_name == 'workflow_dispatch') ||
-      (github.event_name == 'pull_request' && github.event.repository.fork != true)
+      (github.event_name == 'pull_request' && github.event.repository.fork != true && github.actor != 'dependabot[bot]')
     runs-on: ubuntu-latest
     steps:
       - name: Harden the runner (Audit all outbound calls)
