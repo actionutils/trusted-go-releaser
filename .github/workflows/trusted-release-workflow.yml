@@ -51,7 +51,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref }}
 
@@ -102,7 +102,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0 # this is important, otherwise it won't checkout the full tree (i.e. no previous tags)
@@ -194,7 +194,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           ref: ${{ needs.version.outputs.tag_name }}
