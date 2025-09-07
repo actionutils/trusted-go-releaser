@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: read
+  statuses: write  # Required for creating commit status checks
 
 jobs:
   test:
@@ -77,6 +78,21 @@ jobs:
           echo "head_ref=$HEAD_REF" >> $GITHUB_OUTPUT
           echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
           echo "sha_short=$(echo $SHA | cut -c1-8)" >> $GITHUB_OUTPUT
+
+      - name: Create initial status check
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.vars.outputs.sha }}
+        run: |
+          # Create pending status
+          gh api \
+            --method POST \
+            repos/${{ github.repository }}/statuses/$SHA \
+            --field state="pending" \
+            --field description="E2E test is running..." \
+            --field context="E2E Test / test" \
+            --field target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Checkout test repository
         uses: actions/checkout@v5
@@ -178,6 +194,20 @@ jobs:
 
           echo "PR #$TEST_PR_NUMBER merged successfully"
 
+      - name: Update status check - PR merged
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.vars.outputs.sha }}
+        run: |
+          gh api \
+            --method POST \
+            repos/${{ github.repository }}/statuses/$SHA \
+            --field state="pending" \
+            --field description="Test PR merged, waiting for release workflow..." \
+            --field context="E2E Test / test" \
+            --field target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
       - name: Wait for release workflow completion
         env:
           GH_TOKEN: ${{ secrets.TEST_TRUSTED_GO_RELEASER_REPO_GITHUB_TOKEN }}
@@ -255,6 +285,34 @@ jobs:
           git push origin --delete "$TEST_BASE_BRANCH"
 
           echo "Merged test base branch to main directly"
+
+      - name: Update status check - Success
+        if: github.event_name == 'workflow_dispatch' && success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.vars.outputs.sha }}
+        run: |
+          gh api \
+            --method POST \
+            repos/${{ github.repository }}/statuses/$SHA \
+            --field state="success" \
+            --field description="E2E test completed successfully" \
+            --field context="E2E Test / test" \
+            --field target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Update status check - Failure
+        if: github.event_name == 'workflow_dispatch' && failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.vars.outputs.sha }}
+        run: |
+          gh api \
+            --method POST \
+            repos/${{ github.repository }}/statuses/$SHA \
+            --field state="failure" \
+            --field description="E2E test failed" \
+            --field context="E2E Test / test" \
+            --field target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Output test PR info
         env:
