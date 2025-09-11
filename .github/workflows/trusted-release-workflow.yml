@@ -168,8 +168,6 @@ jobs:
           binst gen --type=runner --target-version='${{ needs.version.outputs.tag_name }}' --output=./dist/run.sh
       - name: Sign installer and runner with cosign
         if: steps.check-config.outputs.config_exists == 'true'
-        env:
-          COSIGN_EXPERIMENTAL: 'true'
         run: |
           cosign sign-blob \
             --yes \
