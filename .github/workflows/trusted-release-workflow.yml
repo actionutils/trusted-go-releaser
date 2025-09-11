@@ -241,7 +241,7 @@ jobs:
 
           # Verify the checksum file signature
           cosign verify-blob \
-            --certificate-identity-regexp '^https://github.com/' \
+            --certificate-identity-regexp '^https://github.com/actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml@.*$' \
             --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
             --cert "${{ needs.goreleaser.outputs.checksum_file }}.pem" \
             --signature "${{ needs.goreleaser.outputs.checksum_file }}.sig" \
@@ -297,14 +297,14 @@ jobs:
 
           # Verify with cosign (recommended)
           cosign verify-blob \
-            --certificate-identity-regexp '^https://github.com/' \
+            --certificate-identity-regexp '^https://github.com/actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml@.*$' \
             --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
             --cert install.sh.pem \
             --signature install.sh.sig \
             install.sh
 
           cosign verify-blob \
-            --certificate-identity-regexp '^https://github.com/' \
+            --certificate-identity-regexp '^https://github.com/actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml@.*$' \
             --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
             --cert run.sh.pem \
             --signature run.sh.sig \
@@ -402,7 +402,7 @@ jobs:
           checksum_file: ${{ needs.goreleaser.outputs.checksum_file }}
         run: |
           cosign verify-blob \
-            --certificate-identity-regexp '^https://github.com/' \
+            --certificate-identity-regexp '^https://github.com/actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml@.*$' \
             --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
             --cert "${checksum_file}.pem" \
             --signature "${checksum_file}.sig" \
@@ -417,7 +417,7 @@ jobs:
         run: |
           if [[ -f install.sh && -f install.sh.sig && -f install.sh.pem ]]; then
             cosign verify-blob \
-              --certificate-identity-regexp '^https://github.com/' \
+              --certificate-identity-regexp '^https://github.com/actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml@.*$' \
               --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
               --cert install.sh.pem \
               --signature install.sh.sig \
@@ -425,7 +425,7 @@ jobs:
           fi
           if [[ -f run.sh && -f run.sh.sig && -f run.sh.pem ]]; then
             cosign verify-blob \
-              --certificate-identity-regexp '^https://github.com/' \
+              --certificate-identity-regexp '^https://github.com/actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml@.*$' \
               --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
               --cert run.sh.pem \
               --signature run.sh.sig \
