@@ -166,12 +166,31 @@ jobs:
         run: |
           binst gen --type=installer --target-version='${{ needs.version.outputs.tag_name }}' --output=./dist/install.sh
           binst gen --type=runner --target-version='${{ needs.version.outputs.tag_name }}' --output=./dist/run.sh
+      - name: Sign installer and runner with cosign
+        if: steps.check-config.outputs.config_exists == 'true'
+        run: |
+          cosign sign-blob \
+            --yes \
+            --output-signature ./dist/install.sh.sig \
+            --output-certificate ./dist/install.sh.pem \
+            ./dist/install.sh
+          cosign sign-blob \
+            --yes \
+            --output-signature ./dist/run.sh.sig \
+            --output-certificate ./dist/run.sh.pem \
+            ./dist/run.sh
       - name: Upload installer and runner to release
         if: steps.check-config.outputs.config_exists == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload '${{ needs.version.outputs.tag_name }}' ./dist/install.sh ./dist/run.sh
+          gh release upload '${{ needs.version.outputs.tag_name }}' \
+            ./dist/install.sh \
+            ./dist/install.sh.sig \
+            ./dist/install.sh.pem \
+            ./dist/run.sh \
+            ./dist/run.sh.sig \
+            ./dist/run.sh.pem
       - name: Attest binstaller scripts
         if: steps.check-config.outputs.config_exists == 'true'
         uses: actions/attest-build-provenance@v3
@@ -220,7 +239,7 @@ jobs:
 
           # Verify the checksum file signature
           cosign verify-blob \
-            --certificate-identity-regexp '^https://github.com/' \
+            --certificate-identity-regexp '^https://github.com/actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml@.*$' \
             --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
             --cert "${{ needs.goreleaser.outputs.checksum_file }}.pem" \
             --signature "${{ needs.goreleaser.outputs.checksum_file }}.sig" \
@@ -268,12 +287,28 @@ jobs:
 
           ## Verifying Installation Scripts
 
-          Before using the installation scripts, you can verify their authenticity using GitHub Attestations:
+          Before using the installation scripts, you can verify their authenticity using cosign (signatures) or GitHub Attestations.
 
           ```bash
           # Download the scripts
           gh release download ${{ needs.version.outputs.tag_name }} --pattern "*.sh" --repo ${{ github.repository }}
 
+          # Verify with cosign (recommended)
+          cosign verify-blob \
+            --certificate-identity-regexp '^https://github.com/actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml@.*$' \
+            --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+            --cert install.sh.pem \
+            --signature install.sh.sig \
+            install.sh
+
+          cosign verify-blob \
+            --certificate-identity-regexp '^https://github.com/actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml@.*$' \
+            --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+            --cert run.sh.pem \
+            --signature run.sh.sig \
+            run.sh
+
+          # Or verify with GitHub Attestations
           # Verify the install script
           gh attestation verify install.sh --repo ${{ github.repository }} --signer-workflow='actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml'
 
@@ -365,7 +400,7 @@ jobs:
           checksum_file: ${{ needs.goreleaser.outputs.checksum_file }}
         run: |
           cosign verify-blob \
-            --certificate-identity-regexp '^https://github.com/' \
+            --certificate-identity-regexp '^https://github.com/actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml@.*$' \
             --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
             --cert "${checksum_file}.pem" \
             --signature "${checksum_file}.sig" \
@@ -376,3 +411,21 @@ jobs:
           checksum_file: ${{ needs.goreleaser.outputs.checksum_file }}
         run: |
           sha256sum --ignore-missing -c "${checksum_file}"
+      - name: Verify installer/runner signatures
+        run: |
+          if [[ -f install.sh && -f install.sh.sig && -f install.sh.pem ]]; then
+            cosign verify-blob \
+              --certificate-identity-regexp '^https://github.com/actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml@.*$' \
+              --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+              --cert install.sh.pem \
+              --signature install.sh.sig \
+              install.sh
+          fi
+          if [[ -f run.sh && -f run.sh.sig && -f run.sh.pem ]]; then
+            cosign verify-blob \
+              --certificate-identity-regexp '^https://github.com/actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml@.*$' \
+              --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+              --cert run.sh.pem \
+              --signature run.sh.sig \
+              run.sh
+          fi
