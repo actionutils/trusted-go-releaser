@@ -326,7 +326,29 @@ jobs:
           curl -sSfL https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tag_name }}/run.sh | sh
           ```
 
-          ## One-liner Installation with Attestation Verification
+          ## One-liner Installation with Verification
+
+          ### Using Cosign (recommended)
+
+          ```bash
+          # Set the desired version and script type
+          VERSION="${{ needs.version.outputs.tag_name }}"
+          SCRIPT="install.sh"  # or "run.sh"
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${VERSION}"
+
+          # Download and verify with cosign, then execute
+          curl -sL "${DOWNLOAD_URL}/${SCRIPT}" | \
+              (tmpfile=$(mktemp); cat > "$tmpfile"; \
+               cosign verify-blob \
+                 --certificate-identity-regexp '^https://github.com/actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml@.*$' \
+                 --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+                 --certificate "${DOWNLOAD_URL}/${SCRIPT}.pem" \
+                 --signature "${DOWNLOAD_URL}/${SCRIPT}.sig" \
+                 "$tmpfile" && \
+               sh "$tmpfile"; rm -f "$tmpfile")
+          ```
+
+          ### Using GitHub Attestations
 
           ```bash
           # Set the desired version
