@@ -290,8 +290,8 @@ jobs:
           Before using the installation scripts, you can verify their authenticity using cosign (signatures) or GitHub Attestations.
 
           ```bash
-          # Download the scripts
-          gh release download ${{ needs.version.outputs.tag_name }} --pattern "*.sh" --repo ${{ github.repository }}
+          # Download the scripts and their signatures
+          gh release download ${{ needs.version.outputs.tag_name }} --pattern "*.sh*" --repo ${{ github.repository }}
 
           # Verify with cosign (recommended)
           cosign verify-blob \
