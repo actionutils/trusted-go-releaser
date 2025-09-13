@@ -197,17 +197,10 @@ jobs:
         if: steps.check-config.outputs.config_exists == 'true'
         id: binstaller-hashes
         run: |
-          # Calculate SHA256 hashes for installer/runner scripts
-          install_hash=$(sha256sum ./dist/install.sh | awk '{print $1}')
-          run_hash=$(sha256sum ./dist/run.sh | awk '{print $1}')
-
-          # Create hashes in the same format as goreleaser checksums
-          echo "${install_hash}  install.sh" > ./dist/binstaller_checksums.txt
-          echo "${run_hash}  run.sh" >> ./dist/binstaller_checksums.txt
-
-          # Combine with goreleaser checksums and encode to base64
-          checksum_file="./dist/${{ steps.checksumtxt.outputs.checksum_file }}"
-          combined_hashes=$(cat "$checksum_file" ./dist/binstaller_checksums.txt | base64 -w0)
+          cd dist
+          # Combine goreleaser checksums with installer/runner scripts hashes in one command
+          checksum_file="${{ steps.checksumtxt.outputs.checksum_file }}"
+          combined_hashes=$(cat "$checksum_file" <(sha256sum install.sh run.sh) | base64 -w0)
 
           echo "combined_hashes=${combined_hashes}" >> "$GITHUB_OUTPUT"
           echo "Binstaller scripts hashes calculated and combined"
