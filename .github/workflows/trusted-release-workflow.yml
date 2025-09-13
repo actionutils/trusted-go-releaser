@@ -212,6 +212,7 @@ jobs:
     with:
       base64-subjects: "${{ needs.goreleaser.outputs.hashes }}"
       upload-assets: true # upload to a new release
+      upload-tag-name: "${{ needs.version.outputs.tag_name }}"
 
   release:
     needs: [version, goreleaser, provenance]
