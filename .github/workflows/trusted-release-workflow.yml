@@ -214,7 +214,7 @@ jobs:
       upload-assets: true # upload to a new release
 
   release:
-    needs: [version, goreleaser]
+    needs: [version, goreleaser, provenance]
     if: needs.version.outputs.tag_name != ''
     runs-on: ubuntu-latest
     permissions:
