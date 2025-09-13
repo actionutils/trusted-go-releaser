@@ -128,7 +128,7 @@ jobs:
           checksum_file=$(echo "$ARTIFACTS" | jq -r '.[] | select (.type=="Checksum") | .name')
           echo "checksum file: ${checksum_file}"
           echo "checksum_file=${checksum_file}" >> "$GITHUB_OUTPUT"
-          echo "hashes=$(cat "$checksum_file" | base64 -w0)" >> "$GITHUB_OUTPUT"
+          echo "hashes=$(cat "dist/$checksum_file" | base64 -w0)" >> "$GITHUB_OUTPUT"
       - uses: actions/attest-build-provenance@v3
         with:
           subject-checksums: ./dist/${{ steps.checksumtxt.outputs.checksum_file }}
