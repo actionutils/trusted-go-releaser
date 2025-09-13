@@ -95,6 +95,7 @@ jobs:
     outputs:
       artifacts: ${{ steps.goreleaser.outputs.artifacts }}
       checksum_file: ${{ steps.checksumtxt.outputs.checksum_file }}
+      hashes: ${{ steps.binstaller-hashes.outputs.combined_hashes || steps.checksumtxt.outputs.hashes }}
       config_exists: ${{ steps.check-config.outputs.config_exists }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -127,6 +128,7 @@ jobs:
           checksum_file=$(echo "$ARTIFACTS" | jq -r '.[] | select (.type=="Checksum") | .name')
           echo "checksum file: ${checksum_file}"
           echo "checksum_file=${checksum_file}" >> "$GITHUB_OUTPUT"
+          echo "hashes=$(cat "dist/$checksum_file" | base64 -w0)" >> "$GITHUB_OUTPUT"
       - uses: actions/attest-build-provenance@v3
         with:
           subject-checksums: ./dist/${{ steps.checksumtxt.outputs.checksum_file }}
@@ -191,6 +193,17 @@ jobs:
             ./dist/run.sh \
             ./dist/run.sh.sig \
             ./dist/run.sh.pem
+      - name: Calculate binstaller scripts hashes
+        if: steps.check-config.outputs.config_exists == 'true'
+        id: binstaller-hashes
+        run: |
+          cd dist
+          # Combine goreleaser checksums with installer/runner scripts hashes in one command
+          checksum_file="${{ steps.checksumtxt.outputs.checksum_file }}"
+          combined_hashes=$(cat "$checksum_file" <(sha256sum install.sh run.sh) | base64 -w0)
+
+          echo "combined_hashes=${combined_hashes}" >> "$GITHUB_OUTPUT"
+          echo "Binstaller scripts hashes calculated and combined"
       - name: Attest binstaller scripts
         if: steps.check-config.outputs.config_exists == 'true'
         uses: actions/attest-build-provenance@v3
@@ -199,8 +212,22 @@ jobs:
             ./dist/install.sh
             ./dist/run.sh
 
-  release:
+  provenance:
+    if: needs.version.outputs.tag_name != ''
     needs: [version, goreleaser]
+    permissions:
+      actions: read # To read the workflow path.
+      id-token: write # To sign the provenance.
+      contents: write # To add assets to a release.
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    with:
+      base64-subjects: "${{ needs.goreleaser.outputs.hashes }}"
+      upload-assets: true # upload to a new release
+      upload-tag-name: "${{ needs.version.outputs.tag_name }}"
+      draft-release: true # use existing draft release created by goreleaser
+
+  release:
+    needs: [version, goreleaser, provenance]
     if: needs.version.outputs.tag_name != ''
     runs-on: ubuntu-latest
     permissions:
