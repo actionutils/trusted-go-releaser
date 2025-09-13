@@ -95,7 +95,7 @@ jobs:
     outputs:
       artifacts: ${{ steps.goreleaser.outputs.artifacts }}
       checksum_file: ${{ steps.checksumtxt.outputs.checksum_file }}
-      hashes: ${{ steps.checksumtxt.outputs.hashes }}
+      hashes: ${{ steps.binstaller-hashes.outputs.combined_hashes || steps.checksumtxt.outputs.hashes }}
       config_exists: ${{ steps.check-config.outputs.config_exists }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -193,6 +193,24 @@ jobs:
             ./dist/run.sh \
             ./dist/run.sh.sig \
             ./dist/run.sh.pem
+      - name: Calculate binstaller scripts hashes
+        if: steps.check-config.outputs.config_exists == 'true'
+        id: binstaller-hashes
+        run: |
+          # Calculate SHA256 hashes for installer/runner scripts
+          install_hash=$(sha256sum ./dist/install.sh | awk '{print $1}')
+          run_hash=$(sha256sum ./dist/run.sh | awk '{print $1}')
+
+          # Create hashes in the same format as goreleaser checksums
+          echo "${install_hash}  install.sh" > ./dist/binstaller_checksums.txt
+          echo "${run_hash}  run.sh" >> ./dist/binstaller_checksums.txt
+
+          # Combine with goreleaser checksums and encode to base64
+          checksum_file="./dist/${{ steps.checksumtxt.outputs.checksum_file }}"
+          combined_hashes=$(cat "$checksum_file" ./dist/binstaller_checksums.txt | base64 -w0)
+
+          echo "combined_hashes=${combined_hashes}" >> "$GITHUB_OUTPUT"
+          echo "Binstaller scripts hashes calculated and combined"
       - name: Attest binstaller scripts
         if: steps.check-config.outputs.config_exists == 'true'
         uses: actions/attest-build-provenance@v3
