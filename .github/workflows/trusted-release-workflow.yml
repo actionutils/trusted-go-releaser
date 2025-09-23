@@ -16,6 +16,16 @@ on:
         required: false
         type: boolean
         default: false
+      setup-zig:
+        description: 'Whether to setup Zig for cross-compilation'
+        required: false
+        type: boolean
+        default: false
+      zig-version:
+        description: 'Zig version to use (e.g., 0.13.0, master). Defaults to latest stable'
+        required: false
+        type: string
+        default: ''
     secrets:
       github-token:
         description: 'GitHub token with appropriate permissions'
@@ -110,6 +120,12 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
+
+      - name: Setup Zig
+        if: inputs.setup-zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ inputs.zig-version }}
 
       - uses: sigstore/cosign-installer@v3.9.2 # installs cosign
       - uses: anchore/sbom-action/download-syft@v0.20.5 # installs syft
