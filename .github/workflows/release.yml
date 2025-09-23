@@ -26,7 +26,7 @@ jobs:
       - name: Verify Trusted Tag Releaser
         uses: actionutils/trusted-tag-verifier@v0
         with:
-          verify: 'actionutils/trusted-tag-releaser@v0'
+          verify: 'actionutils/trusted-tag-releaser@v1'
 
   # Post version bump information comment on PR when labeled
   release-preview-comment:
@@ -34,12 +34,13 @@ jobs:
     if: github.event.action == 'labeled'
     permissions:
       pull-requests: write
-    uses: actionutils/trusted-tag-releaser/.github/workflows/release-preview-comment.yml@v0
+    uses: actionutils/trusted-tag-releaser/.github/workflows/release-preview-comment.yml@v2
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # Use the reusable trusted tag workflow for releases if approved
   release:
+    needs: [verify-releaser]
     if: github.event.action != 'labeled'
     concurrency:
       group: "release"
@@ -49,7 +50,8 @@ jobs:
       contents: write    # Required for release and tag creation
       pull-requests: write # Required for bumpr commenting
       attestations: write # Required for build provenance attestation
-    uses: actionutils/trusted-tag-releaser/.github/workflows/trusted-release-workflow.yml@v0
+      actions: read # Required for SLSA generator
+    uses: actionutils/trusted-tag-releaser/.github/workflows/trusted-release-workflow.yml@v2
     with:
       environment: release
     secrets:
