@@ -16,6 +16,26 @@ on:
         required: false
         type: boolean
         default: false
+      setup-zig:
+        description: 'Whether to setup Zig for cross-compilation'
+        required: false
+        type: boolean
+        default: false
+      zig-version:
+        description: 'Zig version to use (e.g., 0.13.0, master). Defaults to latest stable'
+        required: false
+        type: string
+        default: ''
+      setup-go:
+        description: 'Whether to setup Go. Defaults to true unless Zig is enabled. Set explicitly to override'
+        required: false
+        type: string
+        default: ''
+      go-version-file:
+        description: 'Path to go.mod or go.work file for Go version'
+        required: false
+        type: string
+        default: 'go.mod'
     secrets:
       github-token:
         description: 'GitHub token with appropriate permissions'
@@ -107,9 +127,35 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0 # this is important, otherwise it won't checkout the full tree (i.e. no previous tags)
-      - uses: actions/setup-go@v6
+
+      # Determine whether to setup Go
+      # Logic:
+      # - If setup-go is explicitly set (true/false), use that value
+      # - Otherwise, setup Go unless Zig is enabled
+      - name: Determine Go setup
+        id: determine-go-setup
+        run: |
+          if [[ "${{ inputs.setup-go }}" == "true" ]]; then
+            echo "should_setup=true" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ inputs.setup-go }}" == "false" ]]; then
+            echo "should_setup=false" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ inputs.setup-zig }}" == "true" ]]; then
+            echo "should_setup=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_setup=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Go
+        if: steps.determine-go-setup.outputs.should_setup == 'true'
+        uses: actions/setup-go@v6
         with:
-          go-version-file: "go.mod"
+          go-version-file: ${{ inputs.go-version-file }}
+
+      - name: Setup Zig
+        if: inputs.setup-zig
+        uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f # v2.0.5
+        with:
+          version: ${{ inputs.zig-version }}
 
       - uses: sigstore/cosign-installer@v3.9.2 # installs cosign
       - uses: anchore/sbom-action/download-syft@v0.20.5 # installs syft
