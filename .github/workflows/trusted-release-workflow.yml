@@ -319,16 +319,19 @@ jobs:
       # Create temporary release notes file if custom notes are provided
       - name: Prepare custom release notes
         if: inputs.release-notes != ''
+        id: custom-release-notes
         run: |
-          cat > /tmp/custom-release-notes.md << 'EOF'
+          NOTES_FILE=$(mktemp)
+          cat > "$NOTES_FILE" << 'EOF'
           ${{ inputs.release-notes }}
           EOF
+          echo "file=$NOTES_FILE" >> "$GITHUB_OUTPUT"
 
       - uses: goreleaser/goreleaser-action@v6 # run goreleaser
         id: goreleaser
         with:
           version: '~> v2'
-          args: release --clean --draft${{ inputs.release-notes != '' && ' --release-notes /tmp/custom-release-notes.md' || '' }}
+          args: release --clean --draft${{ steps.custom-release-notes.outputs.file && format(' --release-notes {0}', steps.custom-release-notes.outputs.file) || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Get checksum file name
