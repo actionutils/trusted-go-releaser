@@ -315,11 +315,20 @@ jobs:
 
       - uses: sigstore/cosign-installer@v3.9.2 # installs cosign
       - uses: anchore/sbom-action/download-syft@v0.20.5 # installs syft
+
+      # Create temporary release notes file if custom notes are provided
+      - name: Prepare custom release notes
+        if: inputs.release-notes != ''
+        run: |
+          cat > /tmp/custom-release-notes.md << 'EOF'
+          ${{ inputs.release-notes }}
+          EOF
+
       - uses: goreleaser/goreleaser-action@v6 # run goreleaser
         id: goreleaser
         with:
           version: '~> v2'
-          args: release --clean --draft
+          args: release --clean --draft${{ inputs.release-notes != '' && ' --release-notes /tmp/custom-release-notes.md' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Get checksum file name
