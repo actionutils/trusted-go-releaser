@@ -36,6 +36,11 @@ on:
         required: false
         type: string
         default: 'go.mod'
+      install-mingw-dlltool:
+        description: 'Whether to install mingw binutils (dlltool) for Windows GNU builds'
+        required: false
+        type: boolean
+        default: false
       environment:
         description: 'Environment for protecting the release flow'
         required: false
@@ -287,6 +292,11 @@ jobs:
         uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f # v2.0.5
         with:
           version: ${{ inputs.zig-version }}
+
+      # Provide dlltool for windows-gnu without hijacking cc/c++
+      - name: Install mingw binutils (dlltool)
+        if: inputs.install-mingw-dlltool
+        run: sudo apt-get update && sudo apt-get install -y binutils-mingw-w64
 
       - uses: sigstore/cosign-installer@v3.9.2 # installs cosign
       - uses: anchore/sbom-action/download-syft@v0.20.5 # installs syft
