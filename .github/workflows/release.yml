@@ -5,14 +5,37 @@ on:
     branches:
       - main  # Only run on main branch pushes (PR merges)
   pull_request:
-    types:
-      - labeled  # Run when PRs are labeled
+    types: [ opened, synchronize, reopened, labeled, unlabeled ]
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
+  release-pr:
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      statuses: write
+    runs-on: ubuntu-latest
+    outputs:
+      release_pr: ${{ toJSON(steps.release-pr.outputs) }}
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@v5
+      - name: Verify actionutils/create-release-pr
+        uses: actionutils/trusted-tag-verifier@68bef2f18f8ceb5c4dccc5542cadcfbc82ed4656 # v0.5.0
+        with:
+          verify: 'actionutils/create-release-pr'
+      - name: Create or update release PR
+        id: release-pr
+        uses: actionutils/create-release-pr@v0
+
   verify-releaser:
+    needs: [release-pr]
+    if: fromJSON(needs.release-pr.outputs.release_pr).state == 'release_required'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -26,25 +49,12 @@ jobs:
       - name: Verify Trusted Tag Releaser
         uses: actionutils/trusted-tag-verifier@v0
         with:
-          verify: 'actionutils/trusted-tag-releaser@v1'
-
-  # Post version bump information comment on PR when labeled
-  release-preview-comment:
-    needs: [verify-releaser]
-    if: github.event.action == 'labeled'
-    permissions:
-      pull-requests: write
-    uses: actionutils/trusted-tag-releaser/.github/workflows/release-preview-comment.yml@v2
-    secrets:
-      github-token: ${{ secrets.GITHUB_TOKEN }}
+          verify: 'actionutils/trusted-tag-releaser@v2'
 
   # Use the reusable trusted tag workflow for releases if approved
   release:
-    needs: [verify-releaser]
-    if: github.event.action != 'labeled'
-    concurrency:
-      group: "release"
-      cancel-in-progress: false
+    needs: [release-pr, verify-releaser]
+    if: fromJSON(needs.release-pr.outputs.release_pr).state == 'release_required'
     permissions:
       id-token: write    # Required for signed tags
       contents: write    # Required for release and tag creation
@@ -54,5 +64,7 @@ jobs:
     uses: actionutils/trusted-tag-releaser/.github/workflows/trusted-release-workflow.yml@v2
     with:
       environment: release
+      semver-tags-environment: release-semver-tags
+      release-notes: ${{ fromJSON(needs.release-pr.outputs.release_pr).release_notes }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
