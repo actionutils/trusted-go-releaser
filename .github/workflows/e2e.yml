@@ -110,7 +110,7 @@ jobs:
         with:
           repository: actionutils/test-trusted-go-releaser
           token: ${{ secrets.TEST_TRUSTED_GO_RELEASER_REPO_GITHUB_TOKEN }}
-          persist-credentials: false
+          persist-credentials: true
 
       - name: Configure git
         run: |
