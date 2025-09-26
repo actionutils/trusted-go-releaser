@@ -290,7 +290,7 @@ jobs:
           ref: ${{ inputs.ref }}
 
       # Set up signed tag configuration
-      - uses: chainguard-dev/actions/setup-gitsign@v1.4.14
+      - uses: chainguard-dev/actions/setup-gitsign@v1.5.1
 
       # Bump version based on PR labels (bump:major,bump:minor,bump:patch)
       - id: bumpr
