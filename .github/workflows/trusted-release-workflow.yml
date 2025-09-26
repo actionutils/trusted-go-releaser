@@ -376,7 +376,7 @@ jobs:
         if: inputs.install-mingw-dlltool
         run: sudo apt-get update && sudo apt-get install -y binutils-mingw-w64
 
-      - uses: sigstore/cosign-installer@v3.9.2 # installs cosign
+      - uses: sigstore/cosign-installer@v3.10.0 # installs cosign
       - uses: anchore/sbom-action/download-syft@v0.20.5 # installs syft
 
       # Create temporary release notes file if custom notes are provided
@@ -719,7 +719,7 @@ jobs:
           egress-policy: audit
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@v3.9.2
+        uses: sigstore/cosign-installer@v3.10.0
 
       - name: Download assets
         env:
