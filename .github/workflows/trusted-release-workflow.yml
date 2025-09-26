@@ -129,9 +129,9 @@ jobs:
         if: steps.bumpr-dry-run.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.github-token || github.token }}
+          NEXT_VERSION: ${{ steps.bumpr-dry-run.outputs.next_version }}
+          COMMIT_SHA: ${{ github.sha }}
         run: |
-          NEXT_VERSION="${{ steps.bumpr-dry-run.outputs.next_version }}"
-          COMMIT_SHA="${{ github.sha }}"
           # Include short commit hash to ensure uniqueness across re-runs/concurrent runs
           SHORT_SHA="${COMMIT_SHA:0:7}"
           TEMP_BRANCH="keep-ref-${NEXT_VERSION}-${SHORT_SHA}"
@@ -161,10 +161,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           CUSTOM_RELEASE_NOTES: ${{ inputs.release-notes }}
+          SKIP_RELEASE: ${{ steps.bumpr-dry-run.outputs.skip }}
+          NEXT_VERSION: ${{ steps.bumpr-dry-run.outputs.next_version }}
+          CURRENT_VERSION: ${{ steps.bumpr-dry-run.outputs.current_version }}
+          MESSAGE: ${{ steps.bumpr-dry-run.outputs.message }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          COMMIT_SHA: ${{ github.sha }}
         run: |
           echo "# Release Check Summary" >> "$GITHUB_STEP_SUMMARY"
 
-          if [[ "${{ steps.bumpr-dry-run.outputs.skip }}" == "true" ]]; then
+          if [[ "${SKIP_RELEASE}" == "true" ]]; then
             {
               echo "## ⚠️ No Release Needed"
               echo "No version bump label was found on the PR. Release will be skipped."
@@ -177,11 +183,9 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
 
             # Use action-bumpr outputs with better formatting
-            if [[ "${{ steps.bumpr-dry-run.outputs.next_version }}" != "" ]]; then
-              CURRENT_VERSION="${{ steps.bumpr-dry-run.outputs.current_version }}"
-              NEXT_VERSION="${{ steps.bumpr-dry-run.outputs.next_version }}"
-              REPO_URL="https://github.com/${{ github.repository }}"
-              COMPARE_URL="$REPO_URL/compare/$CURRENT_VERSION...${{ github.sha }}"
+            if [[ "${NEXT_VERSION}" != "" ]]; then
+              REPO_URL="https://github.com/${GITHUB_REPOSITORY}"
+              COMPARE_URL="${REPO_URL}/compare/${CURRENT_VERSION}...${COMMIT_SHA}"
 
               # Create a more visually appealing format with emojis
               {
@@ -194,9 +198,9 @@ jobs:
               } >> "$GITHUB_STEP_SUMMARY"
 
               # Add tag message if available
-              if [[ "${{ steps.bumpr-dry-run.outputs.message }}" != "" ]]; then
+              if [[ "${MESSAGE}" != "" ]]; then
                 {
-                  echo "📝 **Tag Message:** ${{ steps.bumpr-dry-run.outputs.message }}"
+                  echo "📝 **Tag Message:** ${MESSAGE}"
                   echo ""
                 } >> "$GITHUB_STEP_SUMMARY"
               fi
@@ -224,16 +228,14 @@ jobs:
                 } >> "$GITHUB_STEP_SUMMARY"
               else
                 # Generate release notes using GitHub API
-                REPO="${{ github.repository }}"
-
                 # Call the API with the parameters (CURRENT_VERSION will be empty string if not set)
                 RELEASE_NOTES=$(gh api \
                   --method POST \
                   -H "Accept: application/vnd.github+json" \
-                  "/repos/${REPO}/releases/generate-notes" \
-                  -f target_commitish="${{ github.sha }}" \
-                  -f tag_name="$NEXT_VERSION" \
-                  -f previous_tag_name="$CURRENT_VERSION" \
+                  "/repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+                  -f target_commitish="${COMMIT_SHA}" \
+                  -f tag_name="${NEXT_VERSION}" \
+                  -f previous_tag_name="${CURRENT_VERSION}" \
                   --jq '.body')
 
                 # Add the generated release notes to the summary
@@ -264,8 +266,10 @@ jobs:
           egress-policy: audit
 
       - name: Approve release
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
         run: |
-          echo "Release approved in the '${{ inputs.environment }}' environment"
+          echo "Release approved in the '${ENVIRONMENT}' environment"
           echo "This job exists to satisfy environment deployment requirements."
 
   # Version management and tag creation job
@@ -298,21 +302,24 @@ jobs:
 
       # Get tag name from bumpr output only
       - id: tag
+        env:
+          SKIP: ${{ steps.bumpr.outputs.skip }}
+          NEXT_VERSION: ${{ steps.bumpr.outputs.next_version }}
         run: |
-          if [[ "${{ steps.bumpr.outputs.skip }}" == "true" ]]; then
+          if [[ "${SKIP}" == "true" ]]; then
             echo "value=" >> "$GITHUB_OUTPUT"
             echo "No version bump label found, skipping release."
           else
-            TAG="${{ steps.bumpr.outputs.next_version }}"
-            echo "value=${TAG}" >> "$GITHUB_OUTPUT"
-            echo "Next version: ${TAG}"
+            echo "value=${NEXT_VERSION}" >> "$GITHUB_OUTPUT"
+            echo "Next version: ${NEXT_VERSION}"
           fi
 
       # Extract version number without "v" prefix (v1.2.3 → 1.2.3)
       - id: extract-version
         if: steps.tag.outputs.value != ''
+        env:
+          TAG: ${{ steps.tag.outputs.value }}
         run: |
-          TAG="${{ steps.tag.outputs.value }}"
           VERSION="${TAG#refs/tags/v}"
           VERSION="${VERSION#v}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
@@ -348,12 +355,15 @@ jobs:
       # - Otherwise, setup Go unless Zig is enabled
       - name: Determine Go setup
         id: determine-go-setup
+        env:
+          SETUP_GO: ${{ inputs.setup-go }}
+          SETUP_ZIG: ${{ inputs.setup-zig }}
         run: |
-          if [[ "${{ inputs.setup-go }}" == "true" ]]; then
+          if [[ "${SETUP_GO}" == "true" ]]; then
             echo "should_setup=true" >> "$GITHUB_OUTPUT"
-          elif [[ "${{ inputs.setup-go }}" == "false" ]]; then
+          elif [[ "${SETUP_GO}" == "false" ]]; then
             echo "should_setup=false" >> "$GITHUB_OUTPUT"
-          elif [[ "${{ inputs.setup-zig }}" == "true" ]]; then
+          elif [[ "${SETUP_ZIG}" == "true" ]]; then
             echo "should_setup=false" >> "$GITHUB_OUTPUT"
           else
             echo "should_setup=true" >> "$GITHUB_OUTPUT"
@@ -402,10 +412,10 @@ jobs:
         env:
           ARTIFACTS: ${{ steps.goreleaser.outputs.artifacts }}
         run: |
-          checksum_file=$(echo "$ARTIFACTS" | jq -r '.[] | select (.type=="Checksum") | .name')
+          checksum_file=$(echo "${ARTIFACTS}" | jq -r '.[] | select (.type=="Checksum") | .name')
           echo "checksum file: ${checksum_file}"
           echo "checksum_file=${checksum_file}" >> "$GITHUB_OUTPUT"
-          echo "hashes=$(cat "dist/$checksum_file" | base64 -w0)" >> "$GITHUB_OUTPUT"
+          echo "hashes=$(cat "dist/${checksum_file}" | base64 -w0)" >> "$GITHUB_OUTPUT"
       - uses: actions/attest-build-provenance@v3
         with:
           subject-checksums: ./dist/${{ steps.checksumtxt.outputs.checksum_file }}
@@ -439,12 +449,15 @@ jobs:
         if: steps.check-config.outputs.config_exists == 'true'
         env:
           checksum_file: ${{ steps.checksumtxt.outputs.checksum_file }}
-        run: binst embed-checksums --mode=checksum-file --file="./dist/${checksum_file}" --version='${{ needs.version.outputs.tag_name }}'
+          VERSION: ${{ needs.version.outputs.tag_name }}
+        run: binst embed-checksums --mode=checksum-file --file="./dist/${checksum_file}" --version="${VERSION}"
       - name: Generate installer and runner scripts
         if: steps.check-config.outputs.config_exists == 'true'
+        env:
+          VERSION: ${{ needs.version.outputs.tag_name }}
         run: |
-          binst gen --type=installer --target-version='${{ needs.version.outputs.tag_name }}' --output=./dist/install.sh
-          binst gen --type=runner --target-version='${{ needs.version.outputs.tag_name }}' --output=./dist/run.sh
+          binst gen --type=installer --target-version="${VERSION}" --output=./dist/install.sh
+          binst gen --type=runner --target-version="${VERSION}" --output=./dist/run.sh
       - name: Sign installer and runner with cosign
         if: steps.check-config.outputs.config_exists == 'true'
         run: |
@@ -462,8 +475,9 @@ jobs:
         if: steps.check-config.outputs.config_exists == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.version.outputs.tag_name }}
         run: |
-          gh release upload '${{ needs.version.outputs.tag_name }}' \
+          gh release upload "${VERSION}" \
             ./dist/install.sh \
             ./dist/install.sh.sig \
             ./dist/install.sh.pem \
@@ -473,11 +487,12 @@ jobs:
       - name: Calculate binstaller scripts hashes
         if: steps.check-config.outputs.config_exists == 'true'
         id: binstaller-hashes
+        env:
+          CHECKSUM_FILE: ${{ steps.checksumtxt.outputs.checksum_file }}
         run: |
           cd dist
           # Combine goreleaser checksums with installer/runner scripts hashes in one command
-          checksum_file="${{ steps.checksumtxt.outputs.checksum_file }}"
-          combined_hashes=$(cat "$checksum_file" <(sha256sum install.sh run.sh) | base64 -w0)
+          combined_hashes=$(cat "${CHECKSUM_FILE}" <(sha256sum install.sh run.sh) | base64 -w0)
 
           echo "combined_hashes=${combined_hashes}" >> "$GITHUB_OUTPUT"
           echo "Binstaller scripts hashes calculated and combined"
@@ -539,18 +554,18 @@ jobs:
 
           ```bash
           # Download the release assets
-          gh release download ${{ needs.version.outputs.tag_name }} --repo ${{ github.repository }}
+          gh release download TAG_NAME_PLACEHOLDER --repo REPO_PLACEHOLDER
 
           # Verify the checksum file signature
           cosign verify-blob \
             --certificate-identity-regexp '^https://github.com/actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml@.*$' \
             --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-            --cert "${{ needs.goreleaser.outputs.checksum_file }}.pem" \
-            --signature "${{ needs.goreleaser.outputs.checksum_file }}.sig" \
-            "${{ needs.goreleaser.outputs.checksum_file }}"
+            --cert "CHECKSUM_FILE_PLACEHOLDER.pem" \
+            --signature "CHECKSUM_FILE_PLACEHOLDER.sig" \
+            "CHECKSUM_FILE_PLACEHOLDER"
 
           # Verify checksums of all binaries
-          sha256sum --ignore-missing -c "${{ needs.goreleaser.outputs.checksum_file }}"
+          sha256sum --ignore-missing -c "CHECKSUM_FILE_PLACEHOLDER"
           ```
 
           ### Using GitHub Attestations
@@ -559,7 +574,7 @@ jobs:
 
           ```bash
           # Verify attestations for the checksum file
-          gh attestation verify "${{ needs.goreleaser.outputs.checksum_file }}" --repo ${{ github.repository }} --signer-workflow='actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml'
+          gh attestation verify "CHECKSUM_FILE_PLACEHOLDER" --repo REPO_PLACEHOLDER --signer-workflow='actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml'
           ```
 
           EOF
@@ -567,9 +582,14 @@ jobs:
 
       - name: Add binstaller instructions
         id: add_binstaller_instructions
+        env:
+          BASE_FILE: ${{ steps.create_base_instructions.outputs.base_instructions_file }}
+          CONFIG_EXISTS: ${{ needs.goreleaser.outputs.config_exists }}
+          TAG_NAME: ${{ needs.version.outputs.tag_name }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          CHECKSUM_FILE: ${{ needs.goreleaser.outputs.checksum_file }}
         run: |
-          BASE_FILE="${{ steps.create_base_instructions.outputs.base_instructions_file }}"
-          echo "Binstaller config exists: ${{ needs.goreleaser.outputs.config_exists }}"
+          echo "Binstaller config exists: ${CONFIG_EXISTS}"
 
           # Close the verification instructions details
           cat >> "$BASE_FILE" << 'CLOSE_VERIFICATION_EOF'
@@ -577,7 +597,12 @@ jobs:
           </details>
           CLOSE_VERIFICATION_EOF
 
-          if [[ "${{ needs.goreleaser.outputs.config_exists }}" == "true" ]]; then
+          # Replace placeholders in base instructions
+          sed -i "s/TAG_NAME_PLACEHOLDER/${TAG_NAME}/g" "${BASE_FILE}"
+          sed -i "s/REPO_PLACEHOLDER/${GITHUB_REPOSITORY//\//\\/}/g" "${BASE_FILE}"
+          sed -i "s/CHECKSUM_FILE_PLACEHOLDER/${CHECKSUM_FILE}/g" "${BASE_FILE}"
+
+          if [[ "${CONFIG_EXISTS}" == "true" ]]; then
             echo "Adding binstaller instructions..."
             cat >> "$BASE_FILE" << 'BINSTALLER_EOF'
 
@@ -595,7 +620,7 @@ jobs:
 
           ```bash
           # Download the scripts and their signatures
-          gh release download ${{ needs.version.outputs.tag_name }} --pattern "*.sh*" --repo ${{ github.repository }}
+          gh release download ${TAG_NAME} --pattern "*.sh*" --repo ${GITHUB_REPOSITORY}
 
           # Verify with cosign (recommended)
           cosign verify-blob \
@@ -614,20 +639,20 @@ jobs:
 
           # Or verify with GitHub Attestations
           # Verify the install script
-          gh attestation verify install.sh --repo ${{ github.repository }} --signer-workflow='actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml'
+          gh attestation verify install.sh --repo ${GITHUB_REPOSITORY} --signer-workflow='actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml'
 
           # Verify the run script
-          gh attestation verify run.sh --repo ${{ github.repository }} --signer-workflow='actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml'
+          gh attestation verify run.sh --repo ${GITHUB_REPOSITORY} --signer-workflow='actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml'
           ```
 
           ## Using Installation Scripts
 
           ```bash
           # Install the binary
-          curl -sSfL https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tag_name }}/install.sh | sh
+          curl -sSfL https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/install.sh | sh
 
           # Or run directly without installation
-          curl -sSfL https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tag_name }}/run.sh | sh
+          curl -sSfL https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/run.sh | sh
           ```
 
           ## One-liner Installation with Verification
@@ -636,9 +661,9 @@ jobs:
 
           ```bash
           # Set the desired version and script type
-          VERSION="${{ needs.version.outputs.tag_name }}"
+          VERSION="${TAG_NAME}"
           SCRIPT="install.sh"  # or "run.sh"
-          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${VERSION}"
+          DOWNLOAD_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${VERSION}"
 
           # Download and verify with cosign, then execute
           curl -sL "${DOWNLOAD_URL}/${SCRIPT}" | \
@@ -656,12 +681,12 @@ jobs:
 
           ```bash
           # Set the desired version
-          VERSION="${{ needs.version.outputs.tag_name }}"
+          VERSION="${TAG_NAME}"
 
           # Install with attestation verification
-          curl -sL "https://github.com/${{ github.repository }}/releases/download/${VERSION}/install.sh" | \
+          curl -sL "https://github.com/${GITHUB_REPOSITORY}/releases/download/${VERSION}/install.sh" | \
               (tmpfile=$(mktemp); cat > "$tmpfile"; \
-               gh attestation verify --repo=${{ github.repository }} --signer-workflow='actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml' "$tmpfile" && \
+               gh attestation verify --repo=${GITHUB_REPOSITORY} --signer-workflow='actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml' "$tmpfile" && \
                sh "$tmpfile"; rm -f "$tmpfile")
           ```
 
@@ -671,7 +696,7 @@ jobs:
             echo "No binstaller config found, skipping binstaller instructions"
           fi
 
-          echo "instructions_file=$BASE_FILE" >> "$GITHUB_OUTPUT"
+          echo "instructions_file=${BASE_FILE}" >> "$GITHUB_OUTPUT"
 
 
       - name: Update GitHub Release
@@ -679,8 +704,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.github-token }}
           CUSTOM_RELEASE_NOTES: ${{ inputs.release-notes }}
+          TAG_NAME: ${{ needs.version.outputs.tag_name }}
+          INSTRUCTIONS_FILE: ${{ steps.add_binstaller_instructions.outputs.instructions_file }}
+          DRAFT: ${{ inputs.draft }}
         run: |
-          TAG_NAME="${{ needs.version.outputs.tag_name }}"
 
           # Determine release body content
           if [[ -n "${CUSTOM_RELEASE_NOTES}" ]]; then
@@ -692,16 +719,16 @@ jobs:
           fi
 
           # Get final verification instructions
-          VERIFICATION_INSTRUCTIONS=$(cat "${{ steps.add_binstaller_instructions.outputs.instructions_file }}")
+          VERIFICATION_INSTRUCTIONS=$(cat "${INSTRUCTIONS_FILE}")
 
           # Combine release body with verification instructions
           NEW_BODY="${RELEASE_BODY}${VERIFICATION_INSTRUCTIONS}"
 
           # Update release with combined body
-          RELEASE_URL=$(gh release edit "$TAG_NAME" \
-            --title "Release $TAG_NAME" \
-            --notes "$NEW_BODY" \
-            --draft=${{ inputs.draft }})
+          RELEASE_URL=$(gh release edit "${TAG_NAME}" \
+            --title "Release ${TAG_NAME}" \
+            --notes "${NEW_BODY}" \
+            --draft="${DRAFT}")
 
           echo "release_url=$RELEASE_URL" >> "$GITHUB_OUTPUT"
           echo "Release URL: $RELEASE_URL"
@@ -725,25 +752,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ needs.version.outputs.tag_name }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           gh -R "${GITHUB_REPOSITORY}" release download "${TAG_NAME}"
 
       - name: Verify checksum signature
         env:
-          checksum_file: ${{ needs.goreleaser.outputs.checksum_file }}
+          CHECKSUM_FILE: ${{ needs.goreleaser.outputs.checksum_file }}
         run: |
           cosign verify-blob \
             --certificate-identity-regexp '^https://github.com/actionutils/trusted-go-releaser/.github/workflows/trusted-release-workflow.yml@.*$' \
             --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-            --cert "${checksum_file}.pem" \
-            --signature "${checksum_file}.sig" \
-            "${checksum_file}"
+            --cert "${CHECKSUM_FILE}.pem" \
+            --signature "${CHECKSUM_FILE}.sig" \
+            "${CHECKSUM_FILE}"
 
       - name: Verify checksum
         env:
-          checksum_file: ${{ needs.goreleaser.outputs.checksum_file }}
+          CHECKSUM_FILE: ${{ needs.goreleaser.outputs.checksum_file }}
         run: |
-          sha256sum --ignore-missing -c "${checksum_file}"
+          sha256sum --ignore-missing -c "${CHECKSUM_FILE}"
       - name: Verify installer/runner signatures
         run: |
           if [[ -f install.sh && -f install.sh.sig && -f install.sh.pem ]]; then
@@ -790,10 +818,10 @@ jobs:
       - name: Delete temporary branch
         env:
           GITHUB_TOKEN: ${{ secrets.github-token }}
+          TEMP_BRANCH: ${{ needs.release-check.outputs.temp_branch }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           # Get the exact branch name that was created
-          TEMP_BRANCH="${{ needs.release-check.outputs.temp_branch }}"
-
           if [[ -z "${TEMP_BRANCH}" ]]; then
             echo "No temporary branch to clean up (may have been skipped)"
             exit 0
