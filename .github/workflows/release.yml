@@ -25,6 +25,8 @@ jobs:
         with:
           egress-policy: audit
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - name: Verify actionutils/create-release-pr
         uses: actionutils/trusted-tag-verifier@68bef2f18f8ceb5c4dccc5542cadcfbc82ed4656 # v0.5.0
         with:
@@ -46,6 +48,8 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - name: Verify Trusted Tag Releaser
         uses: actionutils/trusted-tag-verifier@v0
         with:
