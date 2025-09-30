@@ -53,6 +53,9 @@ on:
       github-token:
         description: 'GitHub token with appropriate permissions'
         required: true
+      goreleaser-env-json:
+        description: 'JSON object of environment variables to pass to goreleaser (e.g., {"HOMEBREW_TAP_GITHUB_TOKEN": "..."})'
+        required: false
     outputs:
       tag_name:
         description: 'The tag name created or used for this release'
@@ -404,13 +407,31 @@ jobs:
           echo "$CUSTOM_RELEASE_NOTES" > "$NOTES_FILE"
           echo "file=$NOTES_FILE" >> "$GITHUB_OUTPUT"
 
+      # Prepare environment variables for goreleaser
+      - name: Prepare goreleaser environment
+        id: goreleaser-env
+        env:
+          GORELEASER_ENV_JSON: ${{ secrets.goreleaser-env-json }}
+          GITHUB_TOKEN: ${{ secrets.github-token }}
+        run: |
+          # Create base environment JSON with GITHUB_TOKEN
+          BASE_ENV="{\"GITHUB_TOKEN\": \"${GITHUB_TOKEN}\"}"
+
+          # Merge with additional environment variables if provided
+          if [[ -n "${GORELEASER_ENV_JSON}" ]]; then
+            # Merge the two JSON objects, with GORELEASER_ENV_JSON taking precedence
+            MERGED_ENV=$(echo "${BASE_ENV}" | jq -s --argjson custom "${GORELEASER_ENV_JSON}" '.[0] * $custom')
+            echo "env_json=${MERGED_ENV}" >> "$GITHUB_OUTPUT"
+          else
+            echo "env_json=${BASE_ENV}" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: goreleaser/goreleaser-action@v6 # run goreleaser
         id: goreleaser
         with:
           version: '~> v2'
           args: release --clean --draft${{ steps.custom-release-notes.outputs.file && format(' --release-notes {0}', steps.custom-release-notes.outputs.file) || '' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        env: ${{ fromJSON(steps.goreleaser-env.outputs.env_json) }}
       - name: Get checksum file name
         id: checksumtxt
         env:
