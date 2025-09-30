@@ -51,8 +51,11 @@ on:
         type: string
     secrets:
       github-token:
-        description: 'GitHub token with appropriate permissions'
-        required: true
+        description: 'DEPRECATED: This input is deprecated and will be removed in a future version. The workflow uses secrets.GITHUB_TOKEN automatically.'
+        required: false
+      goreleaser-env-json:
+        description: 'JSON object of environment variables to pass to goreleaser (e.g., {"HOMEBREW_TAP_GITHUB_TOKEN": "..."})'
+        required: false
     outputs:
       tag_name:
         description: 'The tag name created or used for this release'
@@ -80,6 +83,13 @@ jobs:
       message: ${{ steps.bumpr-dry-run.outputs.message }}
       temp_branch: ${{ steps.create-temp-branch.outputs.temp_branch }}
     steps:
+      - name: Check for deprecated inputs
+        env:
+          DEPRECATED_TOKEN: ${{ secrets.github-token }}
+        if: env.DEPRECATED_TOKEN != ''
+        run: |
+          echo "::warning::The 'github-token' secret input is deprecated and will be removed in a future version. The workflow now uses secrets.GITHUB_TOKEN automatically. Please remove the 'github-token' input from your workflow."
+
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
         with:
@@ -129,7 +139,7 @@ jobs:
         id: create-temp-branch
         if: steps.bumpr-dry-run.outputs.skip != 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.github-token || github.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEXT_VERSION: ${{ steps.bumpr-dry-run.outputs.next_version }}
           COMMIT_SHA: ${{ github.sha }}
         run: |
@@ -160,7 +170,7 @@ jobs:
       # Add release information to job summary
       - name: Add release information to job summary
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CUSTOM_RELEASE_NOTES: ${{ inputs.release-notes }}
           SKIP_RELEASE: ${{ steps.bumpr-dry-run.outputs.skip }}
           NEXT_VERSION: ${{ steps.bumpr-dry-run.outputs.next_version }}
@@ -404,13 +414,31 @@ jobs:
           echo "$CUSTOM_RELEASE_NOTES" > "$NOTES_FILE"
           echo "file=$NOTES_FILE" >> "$GITHUB_OUTPUT"
 
+      # Prepare environment variables for goreleaser
+      - name: Prepare goreleaser environment
+        id: goreleaser-env
+        env:
+          GORELEASER_ENV_JSON: ${{ secrets.goreleaser-env-json }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create base environment JSON with GITHUB_TOKEN
+          BASE_ENV='{"GITHUB_TOKEN": "'${GITHUB_TOKEN}'"}'
+
+          # Merge with additional environment variables if provided
+          if [[ -n "${GORELEASER_ENV_JSON}" ]]; then
+            # Merge the two JSON objects, with GORELEASER_ENV_JSON taking precedence
+            MERGED_ENV=$(jq -sc '.[0] * .[1]' <(echo "$BASE_ENV") <(echo "$GORELEASER_ENV_JSON"))
+          else
+            MERGED_ENV=$(echo "$BASE_ENV" | jq -c '.')
+          fi
+          echo "env_json=${MERGED_ENV}" >> "$GITHUB_OUTPUT"
+
       - uses: goreleaser/goreleaser-action@v6 # run goreleaser
         id: goreleaser
         with:
           version: '~> v2'
           args: release --clean --draft${{ steps.custom-release-notes.outputs.file && format(' --release-notes {0}', steps.custom-release-notes.outputs.file) || '' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        env: ${{ fromJSON(steps.goreleaser-env.outputs.env_json) }}
       - name: Get checksum file name
         id: checksumtxt
         env:
@@ -705,7 +733,7 @@ jobs:
       - name: Update GitHub Release
         id: update_release
         env:
-          GITHUB_TOKEN: ${{ secrets.github-token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CUSTOM_RELEASE_NOTES: ${{ inputs.release-notes }}
           TAG_NAME: ${{ needs.version.outputs.tag_name }}
           INSTRUCTIONS_FILE: ${{ steps.add_binstaller_instructions.outputs.instructions_file }}
@@ -753,7 +781,7 @@ jobs:
 
       - name: Download assets
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ needs.version.outputs.tag_name }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
@@ -820,7 +848,7 @@ jobs:
       # See: https://github.com/orgs/community/discussions/151442
       - name: Delete temporary branch
         env:
-          GITHUB_TOKEN: ${{ secrets.github-token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TEMP_BRANCH: ${{ needs.release-check.outputs.temp_branch }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
