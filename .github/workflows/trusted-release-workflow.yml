@@ -50,6 +50,9 @@ on:
         required: false
         type: string
     secrets:
+      github-token:
+        description: 'DEPRECATED: This input is deprecated and will be removed in a future version. The workflow uses secrets.GITHUB_TOKEN automatically.'
+        required: false
       goreleaser-env-json:
         description: 'JSON object of environment variables to pass to goreleaser (e.g., {"HOMEBREW_TAP_GITHUB_TOKEN": "..."})'
         required: false
@@ -80,6 +83,11 @@ jobs:
       message: ${{ steps.bumpr-dry-run.outputs.message }}
       temp_branch: ${{ steps.create-temp-branch.outputs.temp_branch }}
     steps:
+      - name: Check for deprecated inputs
+        if: secrets.github-token != ''
+        run: |
+          echo "::warning::The 'github-token' secret input is deprecated and will be removed in a future version. The workflow now uses secrets.GITHUB_TOKEN automatically. Please remove the 'github-token' input from your workflow."
+
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
         with:
