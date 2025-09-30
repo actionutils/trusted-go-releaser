@@ -422,16 +422,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Create base environment JSON with GITHUB_TOKEN
-          BASE_ENV="{\"GITHUB_TOKEN\": \"${GITHUB_TOKEN}\"}"
+          BASE_ENV='{"GITHUB_TOKEN": "'${GITHUB_TOKEN}'"}'
 
           # Merge with additional environment variables if provided
           if [[ -n "${GORELEASER_ENV_JSON}" ]]; then
             # Merge the two JSON objects, with GORELEASER_ENV_JSON taking precedence
-            MERGED_ENV=$(echo "${BASE_ENV}" | jq -s --argjson custom "${GORELEASER_ENV_JSON}" '.[0] * $custom')
-            echo "env_json=${MERGED_ENV}" >> "$GITHUB_OUTPUT"
+            MERGED_ENV=$(jq -sc '.[0] * .[1]' <(echo "$BASE_ENV") <(echo "$GORELEASER_ENV_JSON"))
           else
-            echo "env_json=${BASE_ENV}" >> "$GITHUB_OUTPUT"
+            MERGED_ENV=$(echo "$BASE_ENV" | jq -c '.')
           fi
+          echo "env_json=${MERGED_ENV}" >> "$GITHUB_OUTPUT"
 
       - uses: goreleaser/goreleaser-action@v6 # run goreleaser
         id: goreleaser
