@@ -129,7 +129,7 @@ jobs:
         id: create-temp-branch
         if: steps.bumpr-dry-run.outputs.skip != 'true'
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEXT_VERSION: ${{ steps.bumpr-dry-run.outputs.next_version }}
           COMMIT_SHA: ${{ github.sha }}
         run: |
@@ -160,7 +160,7 @@ jobs:
       # Add release information to job summary
       - name: Add release information to job summary
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CUSTOM_RELEASE_NOTES: ${{ inputs.release-notes }}
           SKIP_RELEASE: ${{ steps.bumpr-dry-run.outputs.skip }}
           NEXT_VERSION: ${{ steps.bumpr-dry-run.outputs.next_version }}
@@ -409,10 +409,9 @@ jobs:
         id: goreleaser-env
         env:
           GORELEASER_ENV_JSON: ${{ secrets.goreleaser-env-json }}
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Create base environment JSON with GITHUB_TOKEN
-          # Note: Using github.token (default) for goreleaser to ensure OIDC signing works
           BASE_ENV="{\"GITHUB_TOKEN\": \"${GITHUB_TOKEN}\"}"
 
           # Merge with additional environment variables if provided
@@ -497,7 +496,7 @@ jobs:
       - name: Upload installer and runner to release
         if: steps.check-config.outputs.config_exists == 'true'
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.version.outputs.tag_name }}
         run: |
           gh release upload "${VERSION}" \
@@ -724,7 +723,7 @@ jobs:
       - name: Update GitHub Release
         id: update_release
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CUSTOM_RELEASE_NOTES: ${{ inputs.release-notes }}
           TAG_NAME: ${{ needs.version.outputs.tag_name }}
           INSTRUCTIONS_FILE: ${{ steps.add_binstaller_instructions.outputs.instructions_file }}
@@ -772,7 +771,7 @@ jobs:
 
       - name: Download assets
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ needs.version.outputs.tag_name }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
@@ -839,7 +838,7 @@ jobs:
       # See: https://github.com/orgs/community/discussions/151442
       - name: Delete temporary branch
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TEMP_BRANCH: ${{ needs.release-check.outputs.temp_branch }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
