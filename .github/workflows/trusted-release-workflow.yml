@@ -84,7 +84,9 @@ jobs:
       temp_branch: ${{ steps.create-temp-branch.outputs.temp_branch }}
     steps:
       - name: Check for deprecated inputs
-        if: secrets.github-token != ''
+        env:
+          DEPRECATED_TOKEN: ${{ secrets.github-token }}
+        if: env.DEPRECATED_TOKEN != ''
         run: |
           echo "::warning::The 'github-token' secret input is deprecated and will be removed in a future version. The workflow now uses secrets.GITHUB_TOKEN automatically. Please remove the 'github-token' input from your workflow."
 
