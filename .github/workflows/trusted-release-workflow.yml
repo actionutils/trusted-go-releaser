@@ -36,6 +36,21 @@ on:
         required: false
         type: string
         default: 'go.mod'
+      setup-bun:
+        description: 'Whether to setup Bun'
+        required: false
+        type: boolean
+        default: false
+      bun-version:
+        description: 'Bun version to use (e.g., 1.0.0, latest). Defaults to latest'
+        required: false
+        type: string
+        default: ''
+      bun-version-file:
+        description: 'Path to file containing Bun version (e.g., .bun-version, .tool-versions)'
+        required: false
+        type: string
+        default: ''
       install-mingw-dlltool:
         description: 'Whether to install mingw binutils (dlltool) for Windows GNU builds'
         required: false
@@ -366,18 +381,19 @@ jobs:
       # Determine whether to setup Go
       # Logic:
       # - If setup-go is explicitly set (true/false), use that value
-      # - Otherwise, setup Go unless Zig is enabled
+      # - Otherwise, setup Go unless Zig or Bun is enabled
       - name: Determine Go setup
         id: determine-go-setup
         env:
           SETUP_GO: ${{ inputs.setup-go }}
           SETUP_ZIG: ${{ inputs.setup-zig }}
+          SETUP_BUN: ${{ inputs.setup-bun }}
         run: |
           if [[ "${SETUP_GO}" == "true" ]]; then
             echo "should_setup=true" >> "$GITHUB_OUTPUT"
           elif [[ "${SETUP_GO}" == "false" ]]; then
             echo "should_setup=false" >> "$GITHUB_OUTPUT"
-          elif [[ "${SETUP_ZIG}" == "true" ]]; then
+          elif [[ "${SETUP_ZIG}" == "true" ]] || [[ "${SETUP_BUN}" == "true" ]]; then
             echo "should_setup=false" >> "$GITHUB_OUTPUT"
           else
             echo "should_setup=true" >> "$GITHUB_OUTPUT"
@@ -394,6 +410,13 @@ jobs:
         uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f # v2.0.5
         with:
           version: ${{ inputs.zig-version }}
+
+      - name: Setup Bun
+        if: inputs.setup-bun
+        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
+        with:
+          bun-version: ${{ inputs.bun-version }}
+          bun-version-file: ${{ inputs.bun-version-file }}
 
       # Provide dlltool for windows-gnu without hijacking cc/c++
       - name: Install mingw binutils (dlltool)
