@@ -321,7 +321,7 @@ jobs:
           persist-credentials: false
 
       # Set up signed tag configuration
-      - uses: chainguard-dev/actions/setup-gitsign@v1.5.2
+      - uses: chainguard-dev/actions/setup-gitsign@v1.5.4
 
       # Bump version based on PR labels (bump:major,bump:minor,bump:patch)
       - id: bumpr
